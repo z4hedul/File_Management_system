@@ -25,10 +25,9 @@ while($file = $attach_res->fetch_assoc()) {
 
     // LINE 24 START:
     echo "<tr>";
-    
-    echo "<td>" . htmlspecialchars($row['client'] ?? '') . "</td>";
     echo "<td>" . htmlspecialchars($row['branch_name'] ?? '') . "</td>";
     echo "<td>" . htmlspecialchars($row['division'] ?? '') . "</td>";
+    echo "<td>" . htmlspecialchars($row['client'] ?? '') . "</td>";
     echo "<td>" . htmlspecialchars($row['cabinet_name'] ?? '') . "</td>";
     echo "<td>" . htmlspecialchars($row['shelf_name'] ?? '') . "</td>";
     echo "<td>" . htmlspecialchars($row['file_no'] ?? '') . "</td>";

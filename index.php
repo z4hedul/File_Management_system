@@ -103,9 +103,9 @@ $isAdmin = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin');
                 <table id="filesTable" class="table align-middle w-100 m-0">
                     <thead>
                         <tr>
-                            <th>Client Name</th>
                             <th>Branch</th>
                             <th>Division</th>
+                            <th>Client Name</th>
                             <th>Cabinet</th>
                             <th>Shelf</th>
                             <th>File No.</th>
