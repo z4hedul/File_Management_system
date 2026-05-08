@@ -157,8 +157,8 @@ $update->bind_param("ssssssssi", $branch, $division, $client, $cabinet, $shelf, 
                                 <input type="text" name="existing_descriptions[<?=$file['id']?>]" class="form-control form-control-sm d-inline-block w-75" value="<?=htmlspecialchars($file['description'] ?? '')?>" placeholder="Update description">
                             </div>
                             <div class="text-nowrap">
-                                <a href="<?=$file['file_path']?>" target="_blank" class="btn btn-sm btn-outline-primary"><i class="fas fa-eye"></i></a>
-                                <a href="edit.php?id=<?=$id?>&delete_file=<?=$file['id']?>" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this attachment permanently?')"><i class="fas fa-trash"></i></a>
+                                <a href="<?=$file['file_path']?>" target="_blank" class="btn btn-sm btn-outline-primary">View</a>
+                                <a href="edit.php?id=<?=$id?>&delete_file=<?=$file['id']?>" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this attachment permanently?')">Delete</a>
                             </div>
                         </div>
                     <?php endwhile; ?>

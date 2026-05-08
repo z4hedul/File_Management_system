@@ -58,7 +58,7 @@ $isAdmin = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin');
 
         /* 4. Hover Effect on Cells */
         #filesTable tbody tr:hover td {
-            background-color: #6295d8 !important; /* Slightly darker on hover */
+            background-color: #dbd693 !important; /* Slightly darker on hover */
             cursor: pointer;
         }
 
