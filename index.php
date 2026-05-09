@@ -18,58 +18,8 @@ $isAdmin = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin');
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap5.min.css">
+    <link rel="stylesheet" href="style/style.css">
 
- <style>
-        body { background-color: #e6e6e6; font-family: 'Segoe UI', sans-serif; }
-        .main-container { max-width: 1300px; margin: 0 auto; }
-
-        .table-card { 
-            border-radius: 12px; 
-            border: none; 
-            box-shadow: 0 8px 30px rgba(0,0,0,0.12); 
-            background: #fff;
-            overflow: hidden;
-        }
-
-        /* --- FORCED CELL COLORING --- */
-        
-        /* 1. Header Cells */
-        #filesTable thead th {
-            background-color: #1e3a8a !important; 
-            color: #ffffff !important;
-            text-transform: uppercase;
-            font-size: 0.85rem;
-            padding: 15px !important;
-            border: 1px solid #1e40af !important; /* Defined cell borders */
-            text-align: center;
-        }
-
-      /* 2. Odd Row Cells (Light Silver) */
-#filesTable tbody tr:nth-child(odd) td {
-    background-color: #f8fafc !important; /* Extremely light gray-blue */
-    border: 1px solid #e2e8f0 !important;
-}
-
-/* 3. Even Row Cells (White) */
-#filesTable tbody tr:nth-child(even) td {
-    background-color: #ffffff !important; 
-    border: 1px solid #e2e8f0 !important;
-}
-
-/* 4. Hover Effect (The "Pop" Color) */
-#filesTable tbody tr:hover td {
-    background-color: #e2e8f0 !important; /* Subtle gray highlight */
-    color: #1e3a8a !important; /* Text turns Bank Blue on hover */
-}
-
-        /* 5. Specific Column Styling (Optional) */
-        #filesTable td:nth-child(3) { /* Client Name Column */
-            font-weight: 600;
-            color: #1e3a8a;
-            text-transform: capitalize;
-        }
-        .navbar { background: #1e3a8a; }
-    </style>
 </head>
 <body>
 <!-- <img src="images/fsib_logo.jpg" class="watermark-bg" alt="FSIB Watermark" style="width: 500px;"> -->
@@ -81,8 +31,14 @@ $isAdmin = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin');
     <span>FILE MANAGEMENT SYSTEM</span>
 </a>
         <div class="ms-auto d-flex align-items-center">
-            <span class="text-white me-3 small"><?php echo htmlspecialchars($_SESSION['role']); ?>: <strong> <?php echo htmlspecialchars($_SESSION['username']); ?></strong></span>
-            <a href="logout.php" class="btn btn-sm btn-outline-light">Logout</a>
+            <<span class="text-white me-3 small border-end pe-3">
+    <i class="fas fa-user-circle me-1"></i> 
+    <span class="opacity-75"><?php echo strtoupper(htmlspecialchars($_SESSION['role'])); ?>:</span> 
+    <strong class="text-warning"><?php echo strtoupper(htmlspecialchars($_SESSION['username'])); ?></strong>
+</span>
+            <a href="logout.php" class="btn btn-sm btn-logout shadow-sm">
+    <i class="fas fa-sign-out-alt me-1"></i> LOGOUT
+</a>
         </div>
     </div>
 </nav>
@@ -110,9 +66,9 @@ $isAdmin = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin');
                 <table id="filesTable" class="table align-middle w-100 m-0">
                     <thead>
                         <tr>
-                            <th>Branch</th>
-                            <th>Division</th>
                             <th>Client Name</th>
+                            <th>Branch Code</th>
+                            <th>Division</th>
                             <th>Cabinet</th>
                             <th>Shelf</th>
                             <th>File No.</th>
@@ -143,7 +99,7 @@ $(document).ready(function() {
         "pageLength": 10,
         "responsive": true,
         "language": {
-            "search": "Quick Filter:",
+            "search": "Search File:",
             "lengthMenu": "Show _MENU_"
         }
     });

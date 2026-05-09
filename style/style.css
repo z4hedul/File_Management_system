@@ -1,0 +1,198 @@
+ <style>
+        body { background-color: #e6e6e6; font-family: 'Segoe UI', sans-serif; }
+        .main-container { max-width: 1400px; margin: 0 auto; }
+
+        .table-card { 
+            border-radius: 12px; 
+            border: none; 
+            box-shadow: 0 8px 30px rgba(0,0,0,0.12); 
+            background: #fff;
+            overflow: hidden;
+        }
+
+      /* 2. Odd Row Cells (Light Silver) */
+#filesTable tbody tr:nth-child(odd) td {
+    background-color: #f8fafc !important; /* Extremely light gray-blue */
+    border: 1px solid #e2e8f0 !important;
+}
+
+/* 3. Even Row Cells (White) */
+#filesTable tbody tr:nth-child(even) td {
+    background-color: #ffffff !important; 
+    border: 1px solid #e2e8f0 !important;
+}
+
+/* 4. Hover Effect (The "Pop" Color) */
+#filesTable tbody tr:hover td {
+    background-color: #e2e8f0 !important; /* Subtle gray highlight */
+    color: #1e3a8a !important; /* Text turns Bank Blue on hover */
+}
+
+        /* 5. Specific Column Styling (Optional) */
+        #filesTable td:nth-child(1) { /* Client Name Column */
+            font-weight: 600;
+            color: #1e3a8a;
+            text-transform: capitalize;
+            min-width: 200px;       
+        }
+/* --- SMART AUTO-ADJUSTING HEADERS --- */
+
+#filesTable thead th {
+    background-color: #1e3a8a !important; 
+    color: #ffffff !important;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    padding: 12px 15px !important; /* Balanced padding */
+    border: 1px solid #1e40af !important;
+    text-align: center;
+    
+    /* These three lines prevent the text from wrapping */
+    white-space: nowrap !important; 
+    width: auto !important;
+    vertical-align: middle;
+}
+
+/* Ensure the table doesn't get squashed */
+#filesTable {
+    width: 100% !important;
+    border-collapse: separate; /* Professional spacing */
+}
+/* --- SPECIFIC FIX FOR REMARKS (COLUMN 8) --- */
+
+/* Allow text wrapping in the Remarks data cells only */
+#filesTable tbody td:nth-child(8) {
+    white-space: normal !important; /* Overrides the nowrap if it was inherited */
+    min-width: 150px;              /* Gives it enough room to read */
+    max-width: 250px;              /* Prevents it from growing too wide */
+    font-size: 0.85rem;            /* Slightly smaller font for long notes */
+    line-height: 1.4;
+}
+
+/* Force the Remarks Header to stay small */
+#filesTable thead th:nth-child(8) {
+    width: 100px !important;
+    min-width: 100px !important;
+}
+/* Optional: Add a little extra room for the Client Name column 
+   since it's usually the longest */
+        .navbar { background: #1e3a8a; }
+
+    /* Gorgeous Logout Button */
+.btn-logout {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    font-weight: 600;
+    font-size: 0.75rem;
+    letter-spacing: 1px;
+    padding: 5px 15px;
+    transition: all 0.3s ease;
+    border-radius: 50px; /* Rounded pill shape */
+}
+
+.btn-logout:hover {
+    background: #dc3545; /* Bank red for logout */
+    color: white;
+    border-color: #dc3545;
+    box-shadow: 0 0 15px rgba(220, 53, 69, 0.5);
+    transform: translateY(-1px);
+}
+
+/* User Role/Name Styling */
+.border-end {
+    border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+.text-warning {
+    color: #fbbf24 !important; /* Premium Gold for the username */
+    letter-spacing: 0.5px;
+}
+/* --- SMART SEARCH FIELD STYLING --- */
+
+/* Targets the search label (the "Search File:" text) */
+.dataTables_filter label {
+    font-weight: 600;
+    color: #1e3a8a; /* Bank Blue */
+    font-size: 0.9rem;
+}
+
+/* Targets the actual input box */
+.dataTables_filter input {
+    border: 2px solid #e2e8f0 !important;
+    border-radius: 8px !important;
+    padding: 6px 12px !important;
+    transition: all 0.3s ease;
+    margin-left: 10px;
+    background-color: #f8fafc; /* Very light gray/blue */
+}
+
+/* Smart focus effect when the user clicks to type */
+.dataTables_filter input:focus {
+    outline: none !important;
+    border-color: #1e3a8a !important; /* Changes to Bank Blue */
+    box-shadow: 0 0 8px rgba(30, 58, 138, 0.2) !important; /* Soft blue glow */
+    background-color: #ffffff;
+}
+
+/* Style for the "Show 10 entries" dropdown */
+.dataTables_length select {
+    border: 2px solid #e2e8f0 !important;
+    border-radius: 8px !important;
+    color: #1e3a8a !important;
+    font-weight: 600;
+}
+/* --- GORGEOUS SEARCH LABEL STYLING --- */
+
+/* Targets the 'Search File:' text */
+/* --- ALIGNED & GORGEOUS SEARCH SECTION --- */
+
+/* Wrapper for the Search label and input */
+.dataTables_filter {
+    float: right !important; /* Forces the whole block to the right */
+    text-align: right;
+    margin-bottom: 15px;
+}
+
+.dataTables_filter label {
+    font-weight: 700 !important;
+    color: #1e3a8a !important; 
+    text-transform: uppercase;
+    font-size: 0.8rem;
+    letter-spacing: 0.5px;
+    
+    /* This ensures text and box stay together on the right */
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+/* The Green Search Icon */
+.dataTables_filter label::before {
+    content: "\f002"; 
+    font-family: "Font Awesome 6 Free";
+    font-weight: 900;
+    margin-right: 8px;
+    color: #059669; 
+    font-size: 0.9rem;
+}
+
+/* The Input Box Styling */
+.dataTables_filter input {
+    border: 2px solid #cbd5e1 !important;
+    border-radius: 50px !important; 
+    padding: 5px 15px !important;
+    background-color: #ffffff !important;
+    transition: all 0.3s ease-in-out;
+    width: 220px !important;
+    margin-left: 12px !important; /* Space between text and box */
+    margin-right: 0 !important;
+}
+
+/* Focus Glow */
+.dataTables_filter input:focus {
+    border-color: #1e3a8a !important;
+    box-shadow: 0 0 0 4px rgba(30, 58, 138, 0.15) !important;
+    outline: none;
+    width: 280px !important; /* Smart effect: box grows slightly when clicked */
+}
+ </style>
