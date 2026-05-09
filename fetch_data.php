@@ -31,6 +31,7 @@ while($file = $attach_res->fetch_assoc()) {
     echo "<td>" . htmlspecialchars($row['cabinet_name'] ?? '') . "</td>";
     echo "<td>" . htmlspecialchars($row['shelf_name'] ?? '') . "</td>";
     echo "<td>" . htmlspecialchars($row['file_no'] ?? '') . "</td>";
+    echo "<td>" . htmlspecialchars($row['sanctioned_date'] ?? '') . "</td>";
     echo "<td>" . htmlspecialchars($row['remarks'] ?? '') . "</td>";
     echo "<td>" . $attachments_html . "</td>"; // THIS MUST EXIST
 

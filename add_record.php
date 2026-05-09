@@ -18,11 +18,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $cabinet  = $_POST['cabinet_name'] ?? '';
     $shelf    = $_POST['shelf_name'] ?? '';
     $file_no  = $_POST['file_no'] ?? '';
+    $sanction  = $_POST['sanctioned_date'] ?? '';
     $remarks  = $_POST['remarks'] ?? '';
 
     // 1. Insert the main record
-    $stmt = $conn->prepare("INSERT INTO office_files (branch_name, division, client, cabinet_name, shelf_name, file_no, remarks) VALUES (?, ?, ?, ?, ?, ?, ?)");
-    $stmt->bind_param("sssssss", $branch, $division, $client, $cabinet, $shelf, $file_no, $remarks);
+    $stmt = $conn->prepare("INSERT INTO office_files (branch_name, division, client, cabinet_name, shelf_name, file_no, remarks, sanctioned_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+    $stmt->bind_param("ssssssss", $branch, $division, $client, $cabinet, $shelf, $file_no, $remarks, $sanction);
 
     if ($stmt->execute()) {
         $last_id = $conn->insert_id; 
@@ -118,7 +119,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         <input type="text" name="file_no" class="form-control" required>
                     </div>
                 </div>
-
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">Sanction Date</label>
+                        <input type="date" name="sanctioned_date" class="form-control" required>
+                    </div>
                 <div class="mb-4">
                     <label class="form-label fw-bold">Remarks</label>
                     <textarea name="remarks" class="form-control" rows="2" placeholder="Additional notes..."></textarea>
