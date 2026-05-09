@@ -93,8 +93,9 @@ $update->bind_param("ssssssssi", $branch, $division, $client, $cabinet, $shelf, 
                 }
             }
         }
-        header("Location: index.php?msg=updated");
-        exit;
+        // This keeps the user on the edit page and passes a success flag in the URL
+header("Location: edit.php?id=$id&status=success");
+exit;
     }
 }
 ?>
@@ -108,7 +109,21 @@ $update->bind_param("ssssssssi", $branch, $division, $client, $cabinet, $shelf, 
 </head>
 <body class="bg-light p-5">
 <div class="container bg-white p-4 shadow rounded" style="max-width: 800px;">
-    <h3>Update File & Attachments</h3>
+<?php if (isset($_GET['status']) && $_GET['status'] == 'success'): ?>
+    <div class="alert alert-success d-flex align-items-center justify-content-between shadow-sm" role="alert">
+        <div class="d-flex align-items-center">
+            <i class="fas fa-check-circle me-2"></i>
+            <div>
+                <strong>Update Successful!</strong> The record has been saved.
+            </div>
+        </div>
+        <!-- This button helps the user navigate back easily -->
+        <a href="index.php" class="btn btn-success btn-sm shadow-sm">
+            <i class="fas fa-arrow-left me-1"></i> Back to Home
+        </a>
+    </div>
+<?php endif; ?>  
+<h3>Update File & Attachments</h3>
     <hr>
     <form method="POST" enctype="multipart/form-data" id="editForm">
         <div class="row mb-3">
