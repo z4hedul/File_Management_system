@@ -136,7 +136,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                                <input type="file" name="attachments[]" class="form-control file-input" accept=".pdf">
                             </div>
                             <div class="col-md-6">
-                                <input type="text" name="attachment_descriptions[]" class="form-control desc-input" placeholder="Description (e.g. NID, Trade License)">
+                                <input type="text" name="attachment_descriptions[]" class="form-control desc-input" placeholder="Description (e.g. Office Note, Board Memo etc))">
                             </div>
                             <div class="col-md-1">
                                 <button type="button" class="btn btn-success w-100" id="add-more"><i class="fas fa-plus"></i></button>

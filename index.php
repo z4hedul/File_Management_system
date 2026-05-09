@@ -66,6 +66,7 @@ $isAdmin = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin');
         #filesTable td:nth-child(3) { /* Client Name Column */
             font-weight: 600;
             color: #1e3a8a;
+            text-transform: capitalize;
         }
 
         .navbar { background: #1e3a8a; }
@@ -142,6 +143,6 @@ $(document).ready(function() {
     });
 });
 </script>
-
+<?php include 'footer.php'; ?>
 </body>
 </html>
