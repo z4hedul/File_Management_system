@@ -19,8 +19,8 @@ $isAdmin = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin');
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap5.min.css">
 
-    <style>
-        body { background-color: #f0f2f5; font-family: 'Segoe UI', sans-serif; }
+ <style>
+        body { background-color: #e6e6e6; font-family: 'Segoe UI', sans-serif; }
         .main-container { max-width: 1300px; margin: 0 auto; }
 
         .table-card { 
@@ -44,23 +44,23 @@ $isAdmin = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin');
             text-align: center;
         }
 
-        /* 2. Odd Row Cells (White) */
-        #filesTable tbody tr:nth-child(odd) td {
-            background-color: #ffffff !important;
-            border: 1px solid #e2e8f0 !important; /* Subtle grid lines */
-        }
+      /* 2. Odd Row Cells (Light Silver) */
+#filesTable tbody tr:nth-child(odd) td {
+    background-color: #f8fafc !important; /* Extremely light gray-blue */
+    border: 1px solid #e2e8f0 !important;
+}
 
-        /* 3. Even Row Cells (Smart Soft Blue) */
-        #filesTable tbody tr:nth-child(even) td {
-            background-color: #f4f3f7 !important; 
-            border: 1px solid #e2e8f0 !important;
-        }
+/* 3. Even Row Cells (White) */
+#filesTable tbody tr:nth-child(even) td {
+    background-color: #ffffff !important; 
+    border: 1px solid #e2e8f0 !important;
+}
 
-        /* 4. Hover Effect on Cells */
-        #filesTable tbody tr:hover td {
-            background-color: #b9f0f1 !important; /* Slightly darker on hover */
-            cursor: pointer;
-        }
+/* 4. Hover Effect (The "Pop" Color) */
+#filesTable tbody tr:hover td {
+    background-color: #e2e8f0 !important; /* Subtle gray highlight */
+    color: #1e3a8a !important; /* Text turns Bank Blue on hover */
+}
 
         /* 5. Specific Column Styling (Optional) */
         #filesTable td:nth-child(3) { /* Client Name Column */
@@ -68,17 +68,20 @@ $isAdmin = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin');
             color: #1e3a8a;
             text-transform: capitalize;
         }
-
         .navbar { background: #1e3a8a; }
     </style>
 </head>
 <body>
-
+<!-- <img src="images/fsib_logo.jpg" class="watermark-bg" alt="FSIB Watermark" style="width: 500px;"> -->
 <nav class="navbar navbar-expand-lg navbar-dark shadow mb-4">
     <div class="container main-container">
-        <a class="navbar-brand fw-bold" href="index.php"><i class="fas fa-folder-open me-2"></i>FILE MANAGEMENT SYSTEM</a>
+        <a class="navbar-brand d-flex align-items-center fw-bold" href="index.php">
+    <!-- Logo added here -->
+    <img src="images/fsib_logo.jpg" alt="FSIB Logo" class="me-3 rounded bg-white p-1" style="height: 45px; width: auto;">
+    <span>FILE MANAGEMENT SYSTEM</span>
+</a>
         <div class="ms-auto d-flex align-items-center">
-            <span class="text-white me-3 small">Admin: <strong><?php echo htmlspecialchars($_SESSION['username']); ?></strong></span>
+            <span class="text-white me-3 small"><?php echo htmlspecialchars($_SESSION['role']); ?>: <strong> <?php echo htmlspecialchars($_SESSION['username']); ?></strong></span>
             <a href="logout.php" class="btn btn-sm btn-outline-light">Logout</a>
         </div>
     </div>
@@ -88,7 +91,10 @@ $isAdmin = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin');
     <div class="card table-card">
         <div class="card-header bg-white py-3">
             <div class="d-flex justify-content-between align-items-center">
-                <h5 class="mb-0 fw-bold text-primary">File Records</h5>
+                <div class="d-flex align-items-center">
+    <img src="images/fsib_logo.jpg" alt="Logo" class="me-2" style="height: 30px;">
+    <h5 class="mb-0 fw-bold text-primary">File Records</h5>
+</div>
                 <div class="d-flex gap-2">
                     <?php if($isAdmin): ?>
                         <a href="add_user.php" class="btn btn-primary btn-sm"><i class="fas fa-user-plus"></i> New User</a>
