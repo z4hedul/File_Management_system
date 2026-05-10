@@ -73,6 +73,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <title>Add New File Record</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style/style_add_record_cabinet.css">
 </head>
 <body class="bg-light p-5">
 
@@ -99,24 +100,24 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         </select>
                     </div>
                 </div>
-<div class="col-md-6">
-                        <label class="form-label fw-bold">Branch</label>
-                        <input type="text" name="branch_name" class="form-control" placeholder="e.g. Dilkusha" required>
+            <div class="col-md-6">
+                        <label class="form-label fw-bold">Branch Code</label>
+                        <input type="text" name="branch_name" class="form-control" placeholder="e.g. 0101" required>
                     </div>
                 
 
                 <div class="row mb-3">
                     <div class="col-md-4">
-                        <label class="form-label fw-bold">Cabinet Name</label>
+                        <label class="form-label fw-bold">Cabinet No</label>
                         <input type="text" name="cabinet_name" class="form-control" placeholder="e.g 36" required>
                     </div>
                     <div class="col-md-4">
-                        <label class="form-label fw-bold">Shelf Name</label>
-                        <input type="text" name="shelf_name" class="form-control" placeholder="e.g Top Shelf" required>
+                        <label class="form-label fw-bold">Shelf No</label>
+                        <input type="text" name="shelf_name" class="form-control" placeholder="e.g 1,2,3,4" required>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label fw-bold">File No.</label>
-                        <input type="text" name="file_no" class="form-control" required>
+                        <input type="text" name="file_no" class="form-control" placeholder="Serial no of cabinet" required>
                     </div>
                 </div>
                     <div class="col-md-4">

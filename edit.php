@@ -48,9 +48,9 @@ $update = $conn->prepare("UPDATE office_files SET branch_name=?, division=?, cli
 
 // Note the extra "s" for updated_by
 $update->bind_param("ssssssssi", $branch, $division, $client, $cabinet, $shelf, $file_no, $remarks, $updated_by, $id);
+    $client = $_POST['client'];    
     $branch = $_POST['branch_name'];
     $division = $_POST['division'];
-    $client = $_POST['client'];
     $cabinet = $_POST['cabinet_name'];
     $shelf = $_POST['shelf_name'];
     $file_no = $_POST['file_no'];
@@ -127,8 +127,12 @@ exit;
     <hr>
     <form method="POST" enctype="multipart/form-data" id="editForm">
         <div class="row mb-3">
+         <div class="mb-3">
+            <label class="fw-bold">Client Name</label>
+            <input type="text" name="client" class="form-control" value="<?=htmlspecialchars($data['client'] ?? '')?>" required>
+        </div>
             <div class="col-md-6">
-                <label class="fw-bold">Branch</label>
+                <label class="fw-bold">Branch Code</label>
                 <input type="text" name="branch_name" class="form-control" value="<?=htmlspecialchars($data['branch_name'] ?? '')?>" required>
             </div>
             <div class="col-md-6">
@@ -145,12 +149,7 @@ exit;
             </div>
         </div>
 
-        <div class="mb-3">
-            <label class="fw-bold">Client</label>
-            <input type="text" name="client" class="form-control" value="<?=htmlspecialchars($data['client'] ?? '')?>" required>
-        </div>
-
-        <div class="row mb-3">
+       <div class="row mb-3">
             <div class="col-md-4"><label class="fw-bold">Cabinet</label><input type="text" name="cabinet_name" class="form-control" value="<?=htmlspecialchars($data['cabinet_name'] ?? '')?>" required></div>
             <div class="col-md-4"><label class="fw-bold">Shelf</label><input type="text" name="shelf_name" class="form-control" value="<?=htmlspecialchars($data['shelf_name'] ?? '')?>" required></div>
             <div class="col-md-4"><label class="fw-bold">File No</label><input type="text" name="file_no" class="form-control" value="<?=htmlspecialchars($data['file_no'] ?? '')?>" required></div>
