@@ -1,6 +1,6 @@
  <style>
         body { background-color: #e6e6e6; font-family: 'Segoe UI', sans-serif; }
-        .main-container { max-width: 1400px; margin: 0 auto; }
+        .main-container { max-width: 1600px; margin: 0 auto; }
 
         .table-card { 
             border-radius: 12px; 
@@ -195,4 +195,6 @@
     outline: none;
     width: 280px !important; /* Smart effect: box grows slightly when clicked */
 }
+
+
  </style>

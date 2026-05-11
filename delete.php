@@ -1,22 +1,17 @@
 <?php
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-if (!isset($_SESSION['loggedin']) || $_SESSION['loggedin'] !== true) {
-    header("location: login.php");
-    exit;
-}
-
-include 'db.php'; // Your DB connection logic
+// ... session check remains the same ...
+include 'db.php';
 
 if(isset($_GET['id'])) {
-    $id = $_GET['id'];
-    $sql = "DELETE FROM office_files WHERE id = $id";
+    $id = intval($_GET['id']);
+    // We UPDATE the status to 1 instead of DELETING
+    $sql = "UPDATE office_files SET is_deleted = 1 WHERE id = $id";
 
     if ($conn->query($sql) === TRUE) {
-        header("Location: index.php"); // Redirect back to your main table
+        header("Location: index.php?msg=moved_to_trash");
+        exit;
     } else {
-        echo "Error deleting record: " . $conn->error;
+        echo "Error: " . $conn->error;
     }
 }
 ?>

@@ -2,7 +2,7 @@
 include 'db.php';
 $isAdmin = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin');
 
-$sql = "SELECT * FROM office_files";
+$sql = "SELECT * FROM office_files WHERE is_deleted = 0";
 $result = $conn->query($sql);
 
 while($row = $result->fetch_assoc()) {
@@ -37,10 +37,17 @@ while($file = $attach_res->fetch_assoc()) {
 
     if ($isAdmin) {
         echo "<td>
-                <a href='edit.php?id=$file_id' class='btn btn-sm btn-primary'><i class='fas fa-edit'></i></a>
-                <a href='delete.php?id=$file_id' class='btn btn-sm btn-danger' onclick='return confirm(\"Are you sure?\")'><i class='fas fa-trash'></i></a>
+<a href='edit.php?id=$file_id' class='btn btn-sm btn-primary'><i class='fas fa-edit'></i></a>
+<a href='transfer_file.php?id=$file_id' class='btn btn-sm btn-outline-primary' title='Transfer Division'><i class='fas fa-exchange-alt'></i></a>
+<a href='view_details.php?id=$file_id' class='btn btn-sm btn-dark' title='View History'><i class='fas fa-eye'></i></a>
+<a href='delete.php?id=$file_id' class='btn btn-sm btn-danger' onclick='return confirm(\"Are you sure?\")'><i class='fas fa-trash'></i></a>
               </td>";
     }
+    else {
+        echo "<td>
+<a href='transfer_file.php?id=$file_id' class='btn btn-sm btn-outline-primary' title='Transfer Division'><i class='fas fa-exchange-alt'></i></a>
+<a href='view_details.php?id=$file_id' class='btn btn-sm btn-dark' title='View History'><i class='fas fa-eye'></i></a>
+         </td>";}
     echo "</tr>";
 }
 ?>

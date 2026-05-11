@@ -75,9 +75,7 @@ $isAdmin = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin');
                             <th>Sanction Date</th>
                             <th>Remarks</th>
                             <th>Attachments</th>
-                            <?php if($isAdmin): ?>
-                                <th class="text-center">Actions</th>
-                            <?php endif; ?>
+                            <th class="text-center">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
