@@ -14,7 +14,13 @@ if(isset($_GET['restore_id'])) {
     exit;
 }
 ?>
-
+<?php if(isset($_GET['msg']) && $_GET['msg'] == 'deleted_forever'): ?>
+    <div class="alert alert-danger alert-dismissible fade show shadow-sm" role="alert">
+        <i class="fas fa-exclamation-triangle me-2"></i> 
+        The record has been <strong>permanently removed</strong> from the database.
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+<?php endif; ?>
 <!DOCTYPE html>
 <html>
 <head>

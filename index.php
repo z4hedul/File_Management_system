@@ -1,9 +1,12 @@
 <?php 
-session_start(); 
+session_start();
+// 1. DATABASE CONNECTION MUST BE FIRST
+include 'db.php'; 
 
-if(!isset($_SESSION['loggedin'])) { 
-    header("location: login.php"); 
-    exit; 
+// 2. LOGGED IN CHECK
+if (!isset($_SESSION['loggedin'])) {
+    header("Location: login.php");
+    exit;
 }
 
 $isAdmin = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin');
@@ -31,16 +34,32 @@ $isAdmin = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin');
     <span>FILE MANAGEMENT SYSTEM</span>
 </a>
         <div class="ms-auto d-flex align-items-center">
-            <<span class="text-white me-3 small border-end pe-3">
-    <i class="fas fa-user-circle me-1"></i> 
-    <span class="opacity-75"><?php echo strtoupper(htmlspecialchars($_SESSION['role'])); ?>:</span> 
-    <strong class="text-warning"><?php echo strtoupper(htmlspecialchars($_SESSION['username'])); ?></strong>
-</span>
-            <a href="logout.php" class="btn btn-sm btn-logout shadow-sm">
-    <i class="fas fa-sign-out-alt me-1"></i> LOGOUT
-</a>
-        </div>
-    </div>
+    <a href="trash.php" class="nav-link px-3 position-relative text-white me-3" title="Recycle Bin">
+        <i class="fas fa-trash-alt text-warning"></i>
+        <?php
+            // Count items currently in the trash
+            $t_sql = "SELECT COUNT(*) as total FROM office_files WHERE is_deleted = 1";
+            $t_res = $conn->query($t_sql);
+            $t_count = ($t_res) ? $t_res->fetch_assoc()['total'] : 0;
+            
+            if($t_count > 0): 
+        ?>
+            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.65rem; border: 1px solid white;">
+                <?php echo $t_count; ?>
+            </span>
+        <?php endif; ?>
+    </a>
+
+    <span class="text-white me-3 small border-end pe-3">
+        <i class="fas fa-user-circle me-1"></i> 
+        <span class="opacity-75"><?php echo strtoupper(htmlspecialchars($_SESSION['role'])); ?>:</span> 
+        <strong class="text-warning"><?php echo strtoupper(htmlspecialchars($_SESSION['username'])); ?></strong>
+    </span>
+
+    <a href="logout.php" class="btn btn-sm btn-logout shadow-sm">
+        <i class="fas fa-sign-out-alt me-1"></i> LOGOUT
+    </a>
+</div>
 </nav>
 
 <div class="container main-container pb-5">
