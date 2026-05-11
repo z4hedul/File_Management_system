@@ -2,17 +2,23 @@
 session_start();
 include 'db.php';
 
-// Fetch only deleted files
-$sql = "SELECT * FROM office_files WHERE is_deleted = 1";
-$result = $conn->query($sql);
+// 1. SECURITY CHECK: Redirect anyone who is NOT an admin
+if (!isset($_SESSION['loggedin']) || $_SESSION['role'] !== 'admin') {
+    header("Location: index.php"); // Send them back to the dashboard
+    exit;
+}
 
-// Handle Restore Action
+// 2. Handle Restore Action
 if(isset($_GET['restore_id'])) {
     $rid = intval($_GET['restore_id']);
     $conn->query("UPDATE office_files SET is_deleted = 0 WHERE id = $rid");
     header("Location: trash.php?msg=restored");
     exit;
 }
+
+// 3. Fetch only deleted files
+$sql = "SELECT * FROM office_files WHERE is_deleted = 1";
+$result = $conn->query($sql)
 ?>
 <?php if(isset($_GET['msg']) && $_GET['msg'] == 'deleted_forever'): ?>
     <div class="alert alert-danger alert-dismissible fade show shadow-sm" role="alert">

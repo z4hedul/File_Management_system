@@ -34,21 +34,24 @@ $isAdmin = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin');
     <span>FILE MANAGEMENT SYSTEM</span>
 </a>
         <div class="ms-auto d-flex align-items-center">
-    <a href="trash.php" class="nav-link px-3 position-relative text-white me-3" title="Recycle Bin">
-        <i class="fas fa-trash-alt text-warning"></i>
-        <?php
-            // Count items currently in the trash
-            $t_sql = "SELECT COUNT(*) as total FROM office_files WHERE is_deleted = 1";
-            $t_res = $conn->query($t_sql);
-            $t_count = ($t_res) ? $t_res->fetch_assoc()['total'] : 0;
-            
-            if($t_count > 0): 
-        ?>
-            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.65rem; border: 1px solid white;">
-                <?php echo $t_count; ?>
-            </span>
-        <?php endif; ?>
-    </a>
+    
+    <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
+        <a href="trash.php" class="nav-link px-3 position-relative text-white me-3" title="Recycle Bin">
+            <i class="fas fa-trash-alt text-warning"></i>
+            <?php
+                // Count items currently in the trash
+                $t_sql = "SELECT COUNT(*) as total FROM office_files WHERE is_deleted = 1";
+                $t_res = $conn->query($t_sql);
+                $t_count = ($t_res) ? $t_res->fetch_assoc()['total'] : 0;
+                
+                if($t_count > 0): 
+            ?>
+                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.65rem; border: 1px solid white;">
+                    <?php echo $t_count; ?>
+                </span>
+            <?php endif; ?>
+        </a>
+    <?php endif; ?>
 
     <span class="text-white me-3 small border-end pe-3">
         <i class="fas fa-user-circle me-1"></i> 

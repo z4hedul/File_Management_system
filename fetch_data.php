@@ -2,30 +2,49 @@
 include 'db.php';
 $isAdmin = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin');
 
-$sql = "SELECT * FROM office_files WHERE is_deleted = 0";
+// UPDATE: Added a subquery to count transfers for each file
+$sql = "SELECT *, 
+        (SELECT COUNT(*) FROM file_transfers WHERE file_id = office_files.id) as transfer_count 
+        FROM office_files 
+        WHERE is_deleted = 0";
+
 $result = $conn->query($sql);
 
 while($row = $result->fetch_assoc()) {
     $file_id = $row['id'];
+    $movements = $row['transfer_count']; // Access the count from the query
+    
+    // 1. Division Color Logic
+    $division = $row['division'] ?? '';
+    $clientName = htmlspecialchars($row['client'] ?? '');
+    $textColor = (strtolower(trim($division)) === 'investment') ? '' : 'text-danger fw-bold';
+
+    // 2. View Icon Logic
+    // If movements > 0, we use green (success) and a tooltip with the count
+    if ($movements > 0) {
+        $viewBtnClass = "btn-success"; 
+        $viewTitle = "View History ($movements movements)";
+    } else {
+        $viewBtnClass = "btn-dark"; 
+        $viewTitle = "No History Found";
+    }
     
     // Fetch attachments
-$attach_sql = "SELECT * FROM file_attachments WHERE file_record_id = $file_id";
-$attach_res = $conn->query($attach_sql);
-$attachments_html = ""; 
+    $attach_sql = "SELECT * FROM file_attachments WHERE file_record_id = $file_id";
+    $attach_res = $conn->query($attach_sql);
+    $attachments_html = ""; 
 
-while($file = $attach_res->fetch_assoc()) {
-    $file_path = htmlspecialchars($file['file_path'] ?? '');
-    $file_desc = htmlspecialchars($file['description'] ?? 'Download');
-    
-    // We add 'onclick' to stop the event from bubbling up to the DataTable row
-    $attachments_html .= "<a href='$file_path' target='_blank' class='badge bg-info text-decoration-none mb-1 d-block' onclick='event.stopPropagation();'>
-                            <i class='fas fa-paperclip'></i> $file_desc
-                          </a>";
-}
+    while($file = $attach_res->fetch_assoc()) {
+        $file_path = htmlspecialchars($file['file_path'] ?? '');
+        $file_desc = htmlspecialchars($file['description'] ?? 'Download');
+        
+        $attachments_html .= "<a href='$file_path' target='_blank' class='badge bg-info text-decoration-none mb-1 d-block' onclick='event.stopPropagation();'>
+                                <i class='fas fa-paperclip'></i> $file_desc
+                              </a>";
+    }
 
-    // LINE 24 START:
     echo "<tr>";
-    echo "<td>" . htmlspecialchars($row['client'] ?? '') . "</td>";
+    echo "<td class='$textColor'>" . $clientName . "</td>";
     echo "<td>" . htmlspecialchars($row['branch_name'] ?? '') . "</td>";
     echo "<td>" . htmlspecialchars($row['division'] ?? '') . "</td>";
     echo "<td>" . htmlspecialchars($row['cabinet_name'] ?? '') . "</td>";
@@ -33,21 +52,25 @@ while($file = $attach_res->fetch_assoc()) {
     echo "<td>" . htmlspecialchars($row['file_no'] ?? '') . "</td>";
     echo "<td>" . htmlspecialchars($row['sanctioned_date'] ?? '') . "</td>";
     echo "<td>" . htmlspecialchars($row['remarks'] ?? '') . "</td>";
-    echo "<td>" . $attachments_html . "</td>"; // THIS MUST EXIST
+    echo "<td>" . $attachments_html . "</td>";
 
+    // Actions Column
+    echo "<td>";
     if ($isAdmin) {
-        echo "<td>
-<a href='edit.php?id=$file_id' class='btn btn-sm btn-primary'><i class='fas fa-edit'></i></a>
-<a href='transfer_file.php?id=$file_id' class='btn btn-sm btn-outline-primary' title='Transfer Division'><i class='fas fa-exchange-alt'></i></a>
-<a href='view_details.php?id=$file_id' class='btn btn-sm btn-dark' title='View History'><i class='fas fa-eye'></i></a>
-<a href='delete.php?id=$file_id' class='btn btn-sm btn-danger' onclick='return confirm(\"Are you sure?\")'><i class='fas fa-trash'></i></a>
-              </td>";
+        echo "<a href='edit.php?id=$file_id' class='btn btn-sm btn-primary'><i class='fas fa-edit'></i></a> ";
     }
-    else {
-        echo "<td>
-<a href='transfer_file.php?id=$file_id' class='btn btn-sm btn-outline-primary' title='Transfer Division'><i class='fas fa-exchange-alt'></i></a>
-<a href='view_details.php?id=$file_id' class='btn btn-sm btn-dark' title='View History'><i class='fas fa-eye'></i></a>
-         </td>";}
+    
+    // Transfer Button
+    echo "<a href='transfer_file.php?id=$file_id' class='btn btn-sm btn-outline-primary' title='Transfer Division'><i class='fas fa-exchange-alt'></i></a> ";
+    
+    // UPDATED: View History Button with Dynamic Color
+    echo "<a href='view_details.php?id=$file_id' class='btn btn-sm $viewBtnClass' title='$viewTitle'><i class='fas fa-eye'></i></a> ";
+    
+    if ($isAdmin) {
+        echo "<a href='delete.php?id=$file_id' class='btn btn-sm btn-danger' onclick='return confirm(\"Are you sure?\")'><i class='fas fa-trash'></i></a>";
+    }
+    echo "</td>";
+    
     echo "</tr>";
 }
 ?>

@@ -107,7 +107,7 @@ function toggleOtherInput() {
             <h4 class="text-center fw-bold text-primary mb-4">Transfer Division</h4>
             
             <div class="alert alert-info py-2">
-                <small class="d-block text-uppercase opacity-75">File Name / No:</small>
+                <small class="d-block text-uppercase opacity-75">File Name </small>
                 <strong><?php echo htmlspecialchars($file['client']); ?></strong>
             </div>
 
