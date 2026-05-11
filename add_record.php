@@ -12,18 +12,28 @@ if (!isset($_SESSION['loggedin'])) {
 $message = "";
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $branch   = $_POST['branch_name'] ?? '';
+// --- NEW BRANCH SPLIT LOGIC START ---
+    $branch_info = $_POST['branch_info'] ?? '';
+    $parts = explode('-', $branch_info);
+    
+    // $parts[0] = "0101", $parts[1] = "Dilkusha"
+    $branch_code = isset($parts[0]) ? trim($parts[0]) : '';
+    $branch_name = isset($parts[1]) ? trim($parts[1]) : '';
+    // --- NEW BRANCH SPLIT LOGIC END ---
+
     $division = $_POST['division'] ?? '';
     $client   = $_POST['client'] ?? '';
     $cabinet  = $_POST['cabinet_name'] ?? '';
     $shelf    = $_POST['shelf_name'] ?? '';
     $file_no  = $_POST['file_no'] ?? '';
     $sanction  = $_POST['sanctioned_date'] ?? '';
-    $remarks  = $_POST['remarks'] ?? '';
+    $remarks   = $_POST['remarks'] ?? '';
 
-    // 1. Insert the main record
-    $stmt = $conn->prepare("INSERT INTO office_files (branch_name, division, client, cabinet_name, shelf_name, file_no, remarks, sanctioned_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-    $stmt->bind_param("ssssssss", $branch, $division, $client, $cabinet, $shelf, $file_no, $remarks, $sanction);
+    // 1. Insert the main record (Updated to include branch_code and branch_name)
+    $stmt = $conn->prepare("INSERT INTO office_files (branch_code, branch_name, division, client, cabinet_name, shelf_name, file_no, remarks, sanctioned_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    
+    // Notice: 9 "s" characters for 9 variables
+    $stmt->bind_param("sssssssss", $branch_code, $branch_name, $division, $client, $cabinet, $shelf, $file_no, $remarks, $sanction);
 
     if ($stmt->execute()) {
         $last_id = $conn->insert_id; 
@@ -91,19 +101,27 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     <label class="form-label fw-bold">Client Name</label>
                     <input type="text" name="client" class="form-control" placeholder="e.g. Jamuna Spinning Mills" required>
                 </div>
-                    <div class="col-md-6">
-                        <label class="form-label fw-bold">Division</label>
-                        <select name="division" class="form-select" required>
-                            <option value="Investment">Investment</option>
-                            <option value="SME">SME</option>
-                            <option value="IMRD">IMRD</option>
-                        </select>
-                    </div>
-                </div>
-            <div class="col-md-6">
-                        <label class="form-label fw-bold">Branch Code</label>
-                        <input type="text" name="branch_name" class="form-control" placeholder="e.g. 0101" required>
-                    </div>
+                    <div class="row mb-3">
+    <div class="col-md-6">
+        <label class="form-label fw-bold">Select Branch</label>
+        <select name="branch_info" class="form-select" required>
+            <option value="">-- Select Branch --</option>
+            <option value="0101-Dilkusha">0101-Dilkusha</option>
+            <option value="0102-Khatungonj">0102-Khatungonj</option>
+            <option value="0103-Mohakhali">0103-Mohakhali</option>
+            <option value="0104-Motijheel">0104-Motijheel</option>
+        </select>
+    </div>
+    
+    <div class="col-md-6">
+        <label class="form-label fw-bold">Division</label>
+        <select name="division" class="form-select" required>
+            <option value="Investment">Investment</option>
+            <option value="SME">SME</option>
+            <option value="IMRD">IMRD</option>
+        </select>
+    </div>
+</div>
                 
 
                 <div class="row mb-3">
@@ -184,7 +202,7 @@ document.getElementById('add-more').addEventListener('click', function() {
             <input type="file" name="attachments[]" class="form-control file-input" accept=".pdf">
         </div>
         <div class="col-md-6">
-            <input type="text" name="attachment_descriptions[]" class="form-control desc-input" placeholder="Enter Description">
+            <input type="text" name="attachment_descriptions[]" class="form-control desc-input" placeholder="Description (e.g. Office Note, Board Memo etc))">
         </div>
         <div class="col-md-1">
             <button type="button" class="btn btn-danger w-100 remove-row"><i class="fas fa-minus"></i></button>

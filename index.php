@@ -118,6 +118,8 @@ $(document).ready(function() {
     $('#filesTable').DataTable({
         "pageLength": 10,
         "responsive": true,
+        // ADDED: Sort by the first column (0) in descending order (desc)
+        "order": [[ 0, "desc" ]], 
         "language": {
             "search": "Search File:",
             "lengthMenu": "Show _MENU_"

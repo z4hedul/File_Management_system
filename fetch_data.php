@@ -4,9 +4,7 @@ $isAdmin = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin');
 
 // UPDATE: Added a subquery to count transfers for each file
 $sql = "SELECT *, 
-        (SELECT COUNT(*) FROM file_transfers WHERE file_id = office_files.id) as transfer_count 
-        FROM office_files 
-        WHERE is_deleted = 0";
+        (SELECT COUNT(*) FROM file_transfers WHERE file_id = office_files.id) as transfer_count FROM office_files WHERE is_deleted = 0 ORDER BY id DESC";
 
 $result = $conn->query($sql);
 
@@ -37,15 +35,13 @@ while($row = $result->fetch_assoc()) {
     while($file = $attach_res->fetch_assoc()) {
         $file_path = htmlspecialchars($file['file_path'] ?? '');
         $file_desc = htmlspecialchars($file['description'] ?? 'Download');
-        
         $attachments_html .= "<a href='$file_path' target='_blank' class='badge bg-info text-decoration-none mb-1 d-block' onclick='event.stopPropagation();'>
-                                <i class='fas fa-paperclip'></i> $file_desc
-                              </a>";
+        <i class='fas fa-paperclip'></i> $file_desc</a>";
     }
 
     echo "<tr>";
-    echo "<td class='$textColor'>" . $clientName . "</td>";
-    echo "<td>" . htmlspecialchars($row['branch_name'] ?? '') . "</td>";
+    echo "<td>" . htmlspecialchars($row['client'] ?? '') . "</td>";
+    echo "<td>" . htmlspecialchars($row['branch_code'] ?? '') . "</td>";
     echo "<td>" . htmlspecialchars($row['division'] ?? '') . "</td>";
     echo "<td>" . htmlspecialchars($row['cabinet_name'] ?? '') . "</td>";
     echo "<td>" . htmlspecialchars($row['shelf_name'] ?? '') . "</td>";

@@ -42,22 +42,26 @@ $existing_attachments = $attach_stmt->get_result();
 // --- 4. HANDLE UPDATE ---
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // Use the session username to track who is making the change
-$updated_by = $_SESSION['username']; 
+    $updated_by = $_SESSION['username']; 
+// UPDATED LOGIC: Split branch_info into code and name
+    $branch_info = $_POST['branch_info'] ?? '';
+    $parts = explode('-', $branch_info);
+    $branch_code = isset($parts[0]) ? trim($parts[0]) : '';
+    $branch_name = isset($parts[1]) ? trim($parts[1]) : '';
 
 $update = $conn->prepare("UPDATE office_files SET branch_name=?, division=?, client=?, cabinet_name=?, shelf_name=?, file_no=?, remarks=?, sanctioned_date=? WHERE id=?");
 
 // Note the extra "s" for updated_by
 $update->bind_param("ssssssssi", $branch, $division, $client, $cabinet, $shelf, $file_no, $remarks, $updated_by, $id);
     $client = $_POST['client'];    
-    $branch = $_POST['branch_name'];
     $division = $_POST['division'];
     $cabinet = $_POST['cabinet_name'];
     $shelf = $_POST['shelf_name'];
     $file_no = $_POST['file_no'];
     $sanction = $_POST['sanctioned_date'];
     $remarks = $_POST['remarks'];
-    $update = $conn->prepare("UPDATE office_files SET branch_name=?, division=?, client=?, cabinet_name=?, shelf_name=?, file_no=?, remarks=?, sanctioned_date=? WHERE id=?");
-    $update->bind_param("ssssssssi", $branch, $division, $client, $cabinet, $shelf, $file_no, $remarks, $sanction, $id);
+    $update = $conn->prepare("UPDATE office_files SET branch_code=?, branch_name=?, division=?, client=?, cabinet_name=?, shelf_name=?, file_no=?, remarks=?, sanctioned_date=? WHERE id=?");
+   $update->bind_param("sssssssssi", $branch_code, $branch_name, $division, $client, $cabinet, $shelf, $file_no, $remarks, $sanction, $id);
     
     if ($update->execute()) {
 
@@ -132,8 +136,18 @@ exit;
             <input type="text" name="client" class="form-control" value="<?=htmlspecialchars($data['client'] ?? '')?>" required>
         </div>
             <div class="col-md-6">
-                <label class="fw-bold">Branch Code</label>
-                <input type="text" name="branch_name" class="form-control" value="<?=htmlspecialchars($data['branch_name'] ?? '')?>" required>
+                <label class="fw-bold">Branch Name</label>
+                <select name="branch_info" class="form-select" required>
+                    <?php 
+                    $branches = ["0101-Dilkusha", "0102-Khatungonj", "0103-Mohakhali", "0104-Motijheel"];
+                    // Reconstruct current value to match dropdown (Code-Name)
+                    $current_val = $data['branch_code'] . "-" . $data['branch_name'];
+                    foreach($branches as $b) {
+                        $sel = ($current_val == $b) ? "selected" : "";
+                        echo "<option value='$b' $sel>$b</option>";
+                    }
+                    ?>
+                </select>
             </div>
             <div class="col-md-6">
                 <label class="fw-bold">Division</label>
