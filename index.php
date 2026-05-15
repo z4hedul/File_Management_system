@@ -94,7 +94,7 @@ $isAdmin = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin');
                             <th>Cabinet</th>
                             <th>Shelf</th>
                             <th>File No.</th>
-                            <th>Sanction Date</th>
+                            <th>Created Date</th>
                             <th>Remarks</th>
                             <th>Attachments</th>
                             <th class="text-center">Actions</th>

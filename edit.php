@@ -49,7 +49,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $branch_code = isset($parts[0]) ? trim($parts[0]) : '';
     $branch_name = isset($parts[1]) ? trim($parts[1]) : '';
 
-$update = $conn->prepare("UPDATE office_files SET branch_name=?, division=?, client=?, cabinet_name=?, shelf_name=?, file_no=?, remarks=?, sanctioned_date=? WHERE id=?");
+$update = $conn->prepare("UPDATE office_files SET branch_name=?, division=?, client=?, cabinet_name=?, shelf_name=?, file_no=?, remarks=?, updated_by=? WHERE id=?");
 
 // Note the extra "s" for updated_by
 $update->bind_param("ssssssssi", $branch, $division, $client, $cabinet, $shelf, $file_no, $remarks, $updated_by, $id);
@@ -58,10 +58,9 @@ $update->bind_param("ssssssssi", $branch, $division, $client, $cabinet, $shelf, 
     $cabinet = $_POST['cabinet_name'];
     $shelf = $_POST['shelf_name'];
     $file_no = $_POST['file_no'];
-    $sanction = $_POST['sanctioned_date'];
     $remarks = $_POST['remarks'];
-    $update = $conn->prepare("UPDATE office_files SET branch_code=?, branch_name=?, division=?, client=?, cabinet_name=?, shelf_name=?, file_no=?, remarks=?, sanctioned_date=? WHERE id=?");
-   $update->bind_param("sssssssssi", $branch_code, $branch_name, $division, $client, $cabinet, $shelf, $file_no, $remarks, $sanction, $id);
+    $update = $conn->prepare("UPDATE office_files SET branch_code=?, branch_name=?, division=?, client=?, cabinet_name=?, shelf_name=?, file_no=?, remarks=?, updated_by=? WHERE id=?");
+   $update->bind_param("sssssssssi", $branch_code, $branch_name, $division, $client, $cabinet, $shelf, $file_no, $remarks, $updated_by, $id);
     
     if ($update->execute()) {
 
@@ -167,7 +166,6 @@ exit;
             <div class="col-md-4"><label class="fw-bold">Cabinet</label><input type="text" name="cabinet_name" class="form-control" value="<?=htmlspecialchars($data['cabinet_name'] ?? '')?>" required></div>
             <div class="col-md-4"><label class="fw-bold">Shelf</label><input type="text" name="shelf_name" class="form-control" value="<?=htmlspecialchars($data['shelf_name'] ?? '')?>" required></div>
             <div class="col-md-4"><label class="fw-bold">File No</label><input type="text" name="file_no" class="form-control" value="<?=htmlspecialchars($data['file_no'] ?? '')?>" required></div>
-            <div class="col-md-4"><label class="fw-bold">Sanction Date</label><input type="date" name="sanctioned_date" class="form-control" value="<?=htmlspecialchars($data['sanctioned_date'] ?? '')?>" required></div>
         </div>
 
         <div class="mb-3">
