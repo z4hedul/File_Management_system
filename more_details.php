@@ -95,12 +95,6 @@ $attachments = $at_stmt->get_result();
 </h4>
 
         <div class="no-print">
-<?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
-        <a href="edit_sanction.php?id=<?php echo $id; ?>" class="btn btn-warning btn-sm">
-            <i class="fas fa-pen"></i> Update Sanction/Meeting
-        </a>
-    <?php endif; ?>
-
             <button onclick="window.print()" class="btn btn-outline-secondary btn-sm"><i class="fas fa-print"></i> Print</button>
             <a href="index.php" class="btn btn-secondary btn-sm">Home</a>
         </div>

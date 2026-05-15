@@ -52,22 +52,21 @@ while($row = $result->fetch_assoc()) {
 
     // Actions Column
     echo "<td>";
-    if ($isAdmin) {
-        echo "<a href='edit.php?id=$file_id' class='btn btn-sm btn-primary'><i class='fas fa-edit'></i></a> ";
-    }
-    
-    // Transfer Button
-    echo "<a href='transfer_file.php?id=$file_id' class='btn btn-sm btn-outline-primary' title='Transfer Division'><i class='fas fa-exchange-alt'></i></a> ";
-    
-    // UPDATED: View History Button with Dynamic Color
-    echo "<a href='view_details.php?id=$file_id' class='btn btn-sm $viewBtnClass' title='$viewTitle'><i class='fas fa-eye'></i></a> ";
-   
-      
-    if ($isAdmin) {
-        echo "<a href='delete.php?id=$file_id' class='btn btn-sm btn-danger' onclick='return confirm(\"Are you sure?\")'><i class='fas fa-trash'></i></a>";
-    }
-    echo "<a href='add_facility.php?id=$file_id' class='btn btn-sm btn-success' title='Add New Sanction'><i class='fas fa-plus-square'></i></a>"; 
-    echo "</td>";
+    echo "<div class='d-flex gap-1'>"; // This creates a horizontal row with spacing
+        if ($isAdmin) {
+            echo "<a href='edit.php?id=$file_id' class='btn btn-sm btn-primary'><i class='fas fa-edit'></i></a>";
+        }
+        
+        echo "<a href='transfer_file.php?id=$file_id' class='btn btn-sm btn-outline-primary' title='Transfer Division'><i class='fas fa-exchange-alt'></i></a>";
+        
+        echo "<a href='view_details.php?id=$file_id' class='btn btn-sm $viewBtnClass' title='$viewTitle'><i class='fas fa-eye'></i></a>";
+        
+        if ($isAdmin) {
+            echo "<a href='delete.php?id=$file_id' class='btn btn-sm btn-danger' onclick='return confirm(\"Are you sure?\")'><i class='fas fa-trash'></i></a>";
+        }
+        echo "<a href='add_facility.php?id=$file_id' class='btn btn-sm btn-success' title='Add New Sanction'><i class='fas fa-plus-square'></i></a>"; 
+    echo "</div>";
+echo "</td>";
     
     echo "</tr>";
 }

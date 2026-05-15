@@ -39,7 +39,31 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 }
 ?>
+<style>
+    .btn-hover-custom {
+        transition: all 0.3s ease; /* Makes the transition smooth */
+        border: none;
+        border-radius: 5px;
+    }
 
+    .btn-hover-custom:hover {
+        background-color: #ffca2c; /* A slightly brighter yellow */
+        color: #000;
+        transform: translateY(-2px); /* Lifts the button up slightly */
+        box-shadow: 0 5px 15px rgba(255, 193, 7, 0.4); /* Adds a golden glow */
+    }
+
+    /* Optional: Pulse effect for the icon on hover */
+    .btn-hover-custom:hover i {
+        animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.2); }
+        100% { transform: scale(1); }
+    }
+</style>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -98,7 +122,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         <div class="mt-4 pt-3 border-top">
             <button type="submit" class="btn btn-primary px-5 shadow">Save All Entry</button>
-            <a href="more_details.php?id=<?php echo $id; ?>" class="btn btn-outline-secondary">Back to Details</a>
+            <a href="more_details.php?id=<?php echo $id; ?>" class="btn btn-outline-secondary">Details</a>
+            <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
+    <a href="edit_sanction.php?id=<?php echo $id; ?>" class="btn btn-warning btn-m btn-hover-custom shadow-sm fw-bold px-3">
+        <i class="fas fa-pen-nib me-1"></i> Update Sanction/Meeting</a>
+<?php endif; ?>
+<a href="index.php" class="btn btn-secondary btn-m">Home</a>
         </div>
     </form>
 </div>
