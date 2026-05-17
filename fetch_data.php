@@ -61,10 +61,10 @@ while($row = $result->fetch_assoc()) {
         
         echo "<a href='view_details.php?id=$file_id' class='btn btn-sm $viewBtnClass' title='$viewTitle'><i class='fas fa-eye'></i></a>";
         
+        echo "<a href='add_facility.php?id=$file_id' class='btn btn-sm btn-success' title='Add New Sanction'><i class='fas fa-plus-square'></i></a>"; 
         if ($isAdmin) {
             echo "<a href='delete.php?id=$file_id' class='btn btn-sm btn-danger' onclick='return confirm(\"Are you sure?\")'><i class='fas fa-trash'></i></a>";
         }
-        echo "<a href='add_facility.php?id=$file_id' class='btn btn-sm btn-success' title='Add New Sanction'><i class='fas fa-plus-square'></i></a>"; 
     echo "</div>";
 echo "</td>";
     

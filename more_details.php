@@ -8,7 +8,20 @@ if (!isset($_SESSION['loggedin'])) {
 }
 
 $id = $_GET['id'] ?? null;
+$from_date = $_GET['from_date'] ?? '';
+$to_date = $_GET['to_date'] ?? '';
+$facility_filter = trim($_GET['facility_filter'] ?? '');
+
 if (!$id) { header("location: index.php"); exit; }
+
+if (!empty($from_date)) {
+    $d = DateTime::createFromFormat('Y-m-d', $from_date);
+    $from_date = $d ? $d->format('Y-m-d') : '';
+}
+if (!empty($to_date)) {
+    $d = DateTime::createFromFormat('Y-m-d', $to_date);
+    $to_date = $d ? $d->format('Y-m-d') : '';
+}
 
 // 1. Fetch Main File Data (including Meeting Info)
 $stmt = $conn->prepare("SELECT * FROM office_files WHERE id = ?");
@@ -18,11 +31,64 @@ $data = $stmt->get_result()->fetch_assoc();
 
 if (!$data) { echo "Record not found."; exit; }
 
-// 2. Fetch All Facilities grouped by Sanction Date
-$fac_stmt = $conn->prepare("SELECT * FROM file_facilities WHERE file_record_id = ? ORDER BY sanction_date DESC");
-$fac_stmt->bind_param("i", $id);
+// 2. Fetch Facilities with optional date and type filters
+$fac_stmt = $conn->prepare(
+    "SELECT * FROM file_facilities
+     WHERE file_record_id = ?
+       AND (? = '' OR sanction_date >= ?)
+       AND (? = '' OR sanction_date <= ?)
+       AND (? = '' OR facility_type LIKE CONCAT('%', ?, '%'))
+     ORDER BY sanction_date DESC"
+);
+$fac_stmt->bind_param(
+    "issssss",
+    $id,
+    $from_date,
+    $from_date,
+    $to_date,
+    $to_date,
+    $facility_filter,
+    $facility_filter
+);
 $fac_stmt->execute();
 $facilities = $fac_stmt->get_result();
+$fac_rows = $facilities->fetch_all(MYSQLI_ASSOC);
+
+$type_totals = [];
+$group_totals = ['BG/LC' => 0, 'PIF/HYPO' => 0, 'Other' => 0];
+$total_all = 0;
+$year_groups = [];
+
+foreach ($fac_rows as $row) {
+    $amount = floatval($row['amount'] ?? 0);
+    $total_all += $amount;
+    $type = strtoupper(trim($row['facility_type'] ?? '')) ?: 'UNKNOWN';
+    $type_totals[$type] = ($type_totals[$type] ?? 0) + $amount;
+
+    if (in_array($type, ['BG', 'LC'], true)) {
+        $group_totals['BG/LC'] += $amount;
+    } elseif (in_array($type, ['PIF', 'HYPO'], true)) {
+        $group_totals['PIF/HYPO'] += $amount;
+    } else {
+        $group_totals['Other'] += $amount;
+    }
+
+    $year = !empty($row['sanction_date']) ? date('Y', strtotime($row['sanction_date'])) : 'Unknown';
+    if (!isset($year_groups[$year])) {
+        $year_groups[$year] = [
+            'rows' => [],
+            'total' => 0,
+            'type_totals' => [],
+        ];
+    }
+
+    $year_groups[$year]['rows'][] = $row;
+    $year_groups[$year]['total'] += $amount;
+    $year_groups[$year]['type_totals'][$type] = ($year_groups[$year]['type_totals'][$type] ?? 0) + $amount;
+}
+
+
+krsort($year_groups);
 
 // 3. Fetch Attachments
 $at_stmt = $conn->prepare("SELECT * FROM file_attachments WHERE file_record_id = ?");
@@ -41,11 +107,13 @@ $attachments = $at_stmt->get_result();
     <style>
         .sanction-header { background-color: #e9ecef; font-weight: bold; padding: 8px 15px; border-left: 5px solid #0d6efd; margin-top: 20px; }
         .info-label { background-color: #f8f9fa; font-weight: bold; width: 25%; }
+        .year-panel { display: none; }
+        .year-panel.active { display: block; }
+        .year-tabs .nav-link { cursor: pointer; }
         @media print { .no-print { display: none; } }
     </style>
 </head>
 
-<body class="bg-light p-4">
 <body class="bg-light p-4">
 
 <div class="container mt-3 no-print">
@@ -82,7 +150,7 @@ $attachments = $at_stmt->get_result();
         </div>
     <?php endif; ?>
 </div>
-<div class="container bg-white shadow rounded p-4";>
+<div class="container bg-white shadow rounded p-4">
     <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-2">
         <h4 class="fw-bold">
     <span class="text-secondary">
@@ -100,6 +168,72 @@ $attachments = $at_stmt->get_result();
         </div>
     </div>
 
+    <form method="get" action="more_details.php" class="row g-3 mb-4">
+        <input type="hidden" name="id" value="<?php echo htmlspecialchars($id); ?>">
+        <div class="col-md-3">
+            <label class="form-label">From Date</label>
+            <input type="date" name="from_date" class="form-control form-control-sm" value="<?php echo htmlspecialchars($from_date); ?>">
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">To Date</label>
+            <input type="date" name="to_date" class="form-control form-control-sm" value="<?php echo htmlspecialchars($to_date); ?>">
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Facility Type</label>
+            <input type="text" name="facility_filter" class="form-control form-control-sm" placeholder="e.g. BG, LC, PIF, HYPO" value="<?php echo htmlspecialchars($facility_filter); ?>">
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+            <button type="submit" class="btn btn-primary btn-sm w-100"><i class="fas fa-filter"></i> Apply</button>
+        </div>
+    </form>
+
+    <?php if ($from_date || $to_date || $facility_filter): ?>
+        <div class="alert alert-info shadow-sm border-0 mb-4">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <strong>Filter active:</strong>
+                    <?php
+                        $labelParts = [];
+                        if ($from_date) {
+                            $labelParts[] = 'From ' . date('d.m.Y', strtotime($from_date));
+                        }
+                        if ($to_date) {
+                            $labelParts[] = 'To ' . date('d.m.Y', strtotime($to_date));
+                        }
+                        if ($facility_filter) {
+                            $labelParts[] = 'Facility contains "' . htmlspecialchars($facility_filter) . '"';
+                        }
+                        echo implode(' | ', $labelParts);
+                    ?>
+                </div>
+                <a href="more_details.php?id=<?php echo urlencode($id); ?>" class="btn btn-sm btn-outline-secondary">Clear Filter</a>
+            </div>
+        </div>
+    <?php endif; ?>
+
+    <div class="row row-cols-1 row-cols-md-4 g-3 mb-4">
+        <?php if (!empty($type_totals)): ?>
+            <?php foreach ($type_totals as $type => $amount): ?>
+                <div class="col">
+                    <div class="card border-primary shadow-sm h-100">
+                        <div class="card-body p-3">
+                            <div class="text-secondary small mb-2"><?php echo htmlspecialchars($type); ?></div>
+                            <div class="fs-5 fw-bold"><?php echo number_format($amount, 2); ?></div>
+                        </div>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+        <?php endif; ?>
+        <div class="col">
+            <div class="card border-dark shadow-sm h-100">
+                <div class="card-body p-3">
+                    <div class="text-secondary small mb-2">Total</div>
+                    <div class="fs-5 fw-bold"><?php echo number_format($total_all, 2); ?></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <table class="table table-bordered mb-4">
         <tr>
             <td class="info-label">Branch</td>
@@ -111,93 +245,138 @@ $attachments = $at_stmt->get_result();
    
     <h5 class="text-secondary border-bottom pb-1 mb-2"><i class="fas fa-layer-group"></i> Sanction & Facility History</h5>
 
-<?php 
-$current_date = "";
-$total_all = 0;
-$sub_total = 0;
+    <?php if (!empty($year_groups)): ?>
+        <ul class="nav nav-pills year-tabs gap-2 mb-4">
+            <?php $yearIndex = 0; foreach ($year_groups as $year => $group): ?>
+                <li class="nav-item">
+                    <button type="button" class="nav-link <?php echo $yearIndex === 0 ? 'active' : ''; ?>" data-year="<?php echo htmlspecialchars($year); ?>">
+                        <?php echo htmlspecialchars($year); ?>
+                        <span class="badge bg-light text-dark ms-1"><?php echo count($group['rows']); ?></span>
+                    </button>
+                </li>
+            <?php $yearIndex++; endforeach; ?>
+        </ul>
 
-if ($facilities->num_rows > 0):
-    // 1. Fetch all records into an array first
-    $fac_rows = $facilities->fetch_all(MYSQLI_ASSOC);
-    
-    // 2. DEFINE THE VARIABLE HERE to stop the Warning
-    $total_rows = count($fac_rows); 
+        <?php $panelIndex = 0; foreach ($year_groups as $year => $group): ?>
+            <div class="year-panel <?php echo $panelIndex === 0 ? 'active' : ''; ?>" data-year-panel="<?php echo htmlspecialchars($year); ?>">
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center bg-white border-bottom p-3 mb-3 rounded-top shadow-sm">
+                    <div>
+                        <h6 class="mb-1 text-primary"><i class="fas fa-calendar-alt me-2"></i> Year <?php echo htmlspecialchars($year); ?></h6>
+                        <div class="text-muted small">Click a year tab to view that year’s sanction details.</div>
+                    </div>
+                    <div class="text-md-end mt-2 mt-md-0">
+                        <span class="badge bg-success fs-6">Year Total: <?php echo number_format($group['total'], 2); ?></span>
+                    </div>
+                </div>
 
-    foreach ($fac_rows as $index => $f): 
-        $total_all += $f['amount'] ?? 0;
-        $f_date = !empty($f['sanction_date']) ? date("d.m.Y", strtotime($f['sanction_date'])) : 'N/A';
-        
-        // Handle Sub-total display when date changes
-        if ($current_date !== "" && $current_date !== $f_date):
-?>
-            <tr class="table-secondary">
-                <td class="text-end fw-bold">Sub-Total:</td>
-                <td class="text-end fw-bold text-primary"><?php echo number_format($sub_total, 2); ?></td>
-            </tr>
-            </tbody></table>
-<?php 
-            $sub_total = 0;
-        endif;
+                <?php
+                    $rowsByDate = [];
+                    foreach ($group['rows'] as $row) {
+                        $dateKey = !empty($row['sanction_date']) ? date('d.m.Y', strtotime($row['sanction_date'])) : 'N/A';
+                        $rowsByDate[$dateKey][] = $row;
+                    }
+                ?>
 
-        // Handle Header display for new date
-        if ($current_date !== $f_date):
-            $current_date = $f_date;
-?>
-            <div class="sanction-header d-flex justify-content-between align-items-center bg-light border p-3 mt-4 rounded-top shadow-sm">
-    <div class="fw-bold text-dark">
-        <i class="fas fa-calendar-check text-primary me-2"></i>
-        Sanction Date: <?php echo $current_date; ?>
+                <?php foreach ($rowsByDate as $dateKey => $rows): ?>
+                    <?php $subTotal = 0; ?>
+                    <div class="sanction-header d-flex justify-content-between align-items-center bg-light border p-3 mt-4 rounded-top shadow-sm">
+                        <div class="fw-bold text-dark">
+                            <i class="fas fa-calendar-check text-primary me-2"></i>
+                            <span class="badge bg-primary text-white me-2">Ref: <?php echo htmlspecialchars($rows[0]['sanction_letter_ref_no'] ?? 'N/A'); ?></span>
+                            <span class="text-muted">Sanction Date:</span> <?php echo htmlspecialchars($dateKey); ?>
+                        </div>
+                        <div class="text-end">
+                            <div class="small">
+                                <strong>Invet. Committee Meeting No &amp; (Date):</strong> <?php echo htmlspecialchars($rows[0]['comm_meet_no'] ?? 'N/A'); ?>
+                                <span class="text-muted">(<?php echo !empty($rows[0]['comm_meet_date']) ? date('d.m.Y', strtotime($rows[0]['comm_meet_date'])) : 'N/A'; ?>)</span>
+                            </div>
+                            <div class="small">
+                                <strong>Board Meeting No &amp; (Date):</strong> <?php echo htmlspecialchars($rows[0]['board_meet_no'] ?? 'N/A'); ?>
+                                <span class="text-muted">(<?php echo !empty($rows[0]['board_meet_date']) ? date('d.m.Y', strtotime($rows[0]['board_meet_date'])) : 'N/A'; ?>)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <table class="table table-hover border mb-0">
+                        <thead class="table-white">
+                            <tr class="small text-uppercase">
+                                <th style="width: 70%;">Facility Type</th>
+                                <th class="text-end">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($rows as $row): ?>
+                                <?php $subTotal += floatval($row['amount'] ?? 0); ?>
+                                <tr>
+                                    <td><?php echo htmlspecialchars($row['facility_type']); ?></td>
+                                    <td class="text-end"><?php echo number_format($row['amount'] ?? 0, 2); ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                            <tr class="table-secondary">
+                                <td class="text-end fw-bold">Sub-Total:</td>
+                                <td class="text-end fw-bold text-primary"><?php echo number_format($subTotal, 2); ?></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                <?php endforeach; ?>
+
+                <div class="row row-cols-1 row-cols-md-3 g-2 mt-3 p-3 bg-light rounded-bottom">
+                    <?php foreach ($group['type_totals'] as $type => $amount): ?>
+                        <div class="col">
+                            <div class="p-3 bg-white border rounded">
+                                <div class="text-muted small"><?php echo htmlspecialchars($type); ?></div>
+                                <div class="fs-5 fw-bold"><?php echo number_format($amount, 2); ?></div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        <?php $panelIndex++; endforeach; ?>
+    <?php else: ?>
+        <div class="alert alert-light border text-center mt-3">No facility records found for this client.</div>
+    <?php endif; ?>
+
+    <div class="bg-info text-white p-2 mt-4 text-end rounded shadow-sm">
+        <span class="me-3 text-uppercase small opacity-75">Aggregate Grant Total:</span>
+        <strong class="fs-5"><?php echo number_format($total_all ?? 0, 2); ?></strong>
     </div>
-    
-    <div class="text-end">
-        <div class="small">
-            <strong>Invet. Committee Meeting No & (Date):</strong> <?php echo htmlspecialchars($f['comm_meet_no'] ?? 'N/A'); ?> 
-            <span class="text-muted">(<?php echo !empty($f['comm_meet_date']) ? date("d.m.Y", strtotime($f['comm_meet_date'])) : 'N/A'; ?>)</span>
-        </div>
-        <div class="small">
-            <strong>Board Meeting No & (Date):</strong> <?php echo htmlspecialchars($f['board_meet_no'] ?? 'N/A'); ?> 
-            <span class="text-muted">(<?php echo !empty($f['board_meet_date']) ? date("d.m.Y", strtotime($f['board_meet_date'])) : 'N/A'; ?>)</span>
-        </div>
-    </div>
-</div>
-            <table class="table table-hover border mb-0">
-                <thead class="table-white">
-                    <tr class="small text-uppercase">
-                        <th style="width: 70%;">Facility Type</th>
-                        <th class="text-end">Amount</th>
-                    </tr>
-                </thead>
-                <tbody>
-<?php 
-        endif;
 
-        $sub_total += $f['amount'] ?? 0;
-?>
-                <tr>
-                    <td><?php echo htmlspecialchars($f['facility_type']); ?></td>
-                    <td class="text-end"><?php echo number_format($f['amount'] ?? 0, 2); ?></td>
-                </tr>
-<?php 
-        // 3. Use the variable to check for the last row
-        if ($index === $total_rows - 1): 
-?>
-            <tr class="table-secondary">
-                <td class="text-end fw-bold">Sub-Total:</td>
-                <td class="text-end fw-bold text-primary"><?php echo number_format($sub_total, 2); ?></td>
-            </tr>
-<?php
-        endif;
+    <script>
+        function activateYear(year) {
+            var target = document.querySelector('.year-tabs [data-year="' + year + '"]');
+            var panel = document.querySelector('.year-panel[data-year-panel="' + year + '"]');
+            if (!target || !panel) {
+                var firstTab = document.querySelector('.year-tabs [data-year]');
+                if (!firstTab) return;
+                year = firstTab.dataset.year;
+                target = firstTab;
+                panel = document.querySelector('.year-panel[data-year-panel="' + year + '"]');
+            }
+            document.querySelectorAll('.year-tabs [data-year]').forEach(function(btn) {
+                btn.classList.toggle('active', btn.dataset.year === year);
+            });
+            document.querySelectorAll('.year-panel').forEach(function(panelItem) {
+                panelItem.classList.toggle('active', panelItem.dataset.yearPanel === year);
+            });
+            if (history.replaceState) {
+                history.replaceState(null, '', '#' + encodeURIComponent(year));
+            } else {
+                window.location.hash = encodeURIComponent(year);
+            }
+        }
 
-    endforeach;
-    echo "</tbody></table>"; 
-else:
-?>
-    <div class="alert alert-light border text-center mt-3">No facility records found for this client.</div>
-<?php endif; ?>
+        document.querySelectorAll('.year-tabs [data-year]').forEach(function(button) {
+            button.addEventListener('click', function() {
+                activateYear(this.dataset.year);
+            });
+        });
 
-<div class="bg-info text-white p-2 mt-4 text-end rounded shadow-sm">
-    <span class="me-3 text-uppercase small opacity-75">Aggregate Grant Total:</span>
-    <strong class="fs-5"><?php echo number_format($total_all ?? 0, 2); ?></strong>
-</div>
+        window.addEventListener('DOMContentLoaded', function() {
+            var hashYear = window.location.hash ? decodeURIComponent(window.location.hash.substring(1)) : '';
+            if (hashYear) {
+                activateYear(hashYear);
+            }
+        });
+    </script>
 </body>
 </html>

@@ -78,6 +78,7 @@ $isAdmin = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin');
                         <a href="add_user.php" class="btn btn-primary btn-sm"><i class="fas fa-user-plus"></i> New User</a>
                         <a href="manage_users.php" class="btn btn-dark btn-sm"><i class="fas fa-users"></i> User List</a>
                     <?php endif; ?>
+                    <a href="sanction_report.php" class="btn btn-info btn-sm"><i class="fas fa-chart-line"></i> Sanction Report</a>
                     <a href="add_record.php" class="btn btn-success btn-sm"><i class="fas fa-plus"></i> New File Record</a>
                 </div>
             </div>

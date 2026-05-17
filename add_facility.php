@@ -12,9 +12,13 @@ $stmt->bind_param("i", $id);
 $stmt->execute();
 $main_data = $stmt->get_result()->fetch_assoc();
 
+$sanction_ref_prefix = 'FSIB/HO/INVT/';
+
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // Shared Data for this specific entry session
-    $f_date = $_POST['sanction_date']; 
+    $f_date = $_POST['sanction_date'];
+    $ref_suffix = trim($_POST['sanction_letter_ref_no_suffix'] ?? '');
+    $s_ref  = $sanction_ref_prefix . $ref_suffix;
     $c_no   = $_POST['comm_meet_no'];
     $c_date = $_POST['comm_meet_date'];
     $b_no   = $_POST['board_meet_no'];
@@ -27,10 +31,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 
                 // Inserting facility + specific meeting info
                 $sql = "INSERT INTO file_facilities 
-                        (file_record_id, facility_type, amount, sanction_date, comm_meet_no, comm_meet_date, board_meet_no, board_meet_date) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+                        (file_record_id, facility_type, amount, sanction_date, sanction_letter_ref_no, comm_meet_no, comm_meet_date, board_meet_no, board_meet_date) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
                 $f_stmt = $conn->prepare($sql);
-                $f_stmt->bind_param("isdsssss", $id, $type, $amt, $f_date, $c_no, $c_date, $b_no, $b_date);
+                $f_stmt->bind_param("isdssssss", $id, $type, $amt, $f_date, $s_ref, $c_no, $c_date, $b_no, $b_date);
                 $f_stmt->execute();
             }
         }
@@ -51,6 +55,25 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         color: #000;
         transform: translateY(-2px); /* Lifts the button up slightly */
         box-shadow: 0 5px 15px rgba(255, 193, 7, 0.4); /* Adds a golden glow */
+    }
+
+    .ref-prefix-text,
+    .input-group-text {
+        background: #e7f1ff;
+        border-color: #b8daff;
+        color: #094b96;
+        font-weight: 700;
+    }
+
+    .ref-prefix-text {
+        display: inline-block;
+        margin-bottom: 0.25rem;
+        padding: 0.5rem 0.75rem;
+        border-radius: 0.5rem;
+    }
+
+    .ref-suffix-input {
+        min-width: 180px;
     }
 
     /* Optional: Pulse effect for the icon on hover */
@@ -85,6 +108,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <div class="card-header bg-primary text-white fw-bold small">APPROVAL & DATE DETAILS</div>
             <div class="card-body bg-light">
                 <div class="row g-3">
+                        <div class="col-md-4">
+                        <label class="form-label fw-bold">Sanction Letter Ref No</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><?php echo $sanction_ref_prefix; ?></span>
+                            <input type="text" name="sanction_letter_ref_no_suffix" class="form-control border-primary ref-suffix-input" placeholder="Enter reference suffix" required>
+                        </div>
+                    </div>
                     <div class="col-md-4">
                         <label class="form-label fw-bold">Sanction Date</label>
                         <input type="date" name="sanction_date" class="form-control border-primary" required>
@@ -131,7 +161,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         </div>
     </form>
 </div>
-
 <script>
     document.getElementById('add-more').onclick = function() {
         let container = document.getElementById('facility-container');

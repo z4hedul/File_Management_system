@@ -18,6 +18,8 @@ $stmt->bind_param("i", $id);
 $stmt->execute();
 $main_data = $stmt->get_result()->fetch_assoc();
 
+$sanction_ref_prefix = 'FSIB/HO/INVT/';
+
 // 3. Fetch All Facilities (including their specific meeting info)
 $fac_stmt = $conn->prepare("SELECT * FROM file_facilities WHERE file_record_id = ? ORDER BY sanction_date DESC");
 $fac_stmt->bind_param("i", $id);
@@ -35,14 +37,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             foreach ($_POST['f_types'] as $k => $type) {
                 if (!empty($type)) {
                     $sql = "INSERT INTO file_facilities 
-                            (file_record_id, facility_type, amount, sanction_date, comm_meet_no, comm_meet_date, board_meet_no, board_meet_date) 
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+                            (file_record_id, facility_type, amount, sanction_date, sanction_letter_ref_no, comm_meet_no, comm_meet_date, board_meet_no, board_meet_date) 
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                    $ref_suffix = trim($_POST['f_ref_suffixes'][$k] ?? '');
+                    $full_ref = $sanction_ref_prefix . $ref_suffix;
                     $ins = $conn->prepare($sql);
-                    $ins->bind_param("isdsssss", 
+                    $ins->bind_param("isdssssss", 
                         $id, 
                         $type, 
                         $_POST['f_amts'][$k], 
                         $_POST['f_dates'][$k],
+                        $full_ref,
                         $_POST['c_nos'][$k],
                         $_POST['c_dates'][$k],
                         $_POST['b_nos'][$k],
@@ -72,6 +77,22 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         .facility-card { border-left: 5px solid #0d6efd; background: #fff; transition: 0.3s; }
         .facility-card:hover { border-left-color: #ffc107; }
         label { font-size: 0.75rem; text-transform: uppercase; color: #6c757d; font-weight: bold; }
+        .ref-prefix-text,
+        .input-group-text {
+            background: #e7f1ff;
+            border-color: #b8daff;
+            color: #094b96;
+            font-weight: 700;
+        }
+        .ref-prefix-text {
+            display: inline-block;
+            margin-bottom: 0.25rem;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.5rem;
+        }
+        .ref-suffix-input {
+            min-width: 180px;
+        }
     </style>
 </head>
 <body class="bg-light p-4">
@@ -92,8 +113,22 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     <div class="card-body">
                         <div class="row g-3">
                             <div class="col-md-3">
-                                <label>Sanction Date</label>
-                                <input type="date" name="f_dates[]" value="<?php echo $f['sanction_date']; ?>" class="form-control form-control-sm border-primary" required>
+                                <label>Sanction Letter Ref No</label>
+                                <?php
+                                    $existing_ref = $f['sanction_letter_ref_no'] ?? '';
+                                    $ref_suffix = $existing_ref;
+                                    if (strpos($existing_ref, $sanction_ref_prefix) === 0) {
+                                        $ref_suffix = substr($existing_ref, strlen($sanction_ref_prefix));
+                                    }
+                                ?>
+                                <div class="input-group">
+                                    <span class="input-group-text"><?php echo $sanction_ref_prefix; ?></span>
+                                    <input type="text" name="f_ref_suffixes[]" value="<?php echo htmlspecialchars($ref_suffix); ?>" class="form-control form-control-sm ref-suffix-input" placeholder="Reference suffix" required>
+                                </div>
+                                <div class="mt-2">
+                                    <label>Sanction Date</label>
+                                    <input type="date" name="f_dates[]" value="<?php echo $f['sanction_date']; ?>" class="form-control form-control-sm border-primary" required>
+                                </div>
                                 <div class="mt-2">
                                     <label>Facility Type</label>
                                     <input type="text" name="f_types[]" value="<?php echo htmlspecialchars($f['facility_type']); ?>" class="form-control form-control-sm" required>
@@ -149,8 +184,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <div class="card-body">
                 <div class="row g-3">
                     <div class="col-md-3">
-                        <label>Sanction Date</label>
-                        <input type="date" name="f_dates[]" class="form-control form-control-sm border-primary" required>
+                        <label>Sanction Letter Ref No</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><?php echo $sanction_ref_prefix; ?></span>
+                            <input type="text" name="f_ref_suffixes[]" class="form-control form-control-sm" placeholder="Reference suffix" required>
+                        </div>
+                        <div class="mt-2">
+                            <label>Sanction Date</label>
+                            <input type="date" name="f_dates[]" class="form-control form-control-sm border-primary" required>
+                        </div>
                         <div class="mt-2">
                             <label>Facility Type</label>
                             <input type="text" name="f_types[]" class="form-control form-control-sm" placeholder="Type" required>
@@ -162,13 +204,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     </div>
                     <div class="col-md-4 border-start">
                         <label class="text-info">Investment Committee</label>
-                        <input type="text" name="c_nos[]" value="<?php echo htmlspecialchars($f['comm_meet_no'] ?? ''); ?>" class="form-control form-control-sm mb-2" placeholder="Meet No">
-                        <input type="date" name="c_dates[]" value="<?php echo $f['comm_meet_date'] ?? ''; ?>" class="form-control form-control-sm">
+                        <input type="text" name="c_nos[]" class="form-control form-control-sm mb-2" placeholder="Meet No">
+                        <input type="date" name="c_dates[]" class="form-control form-control-sm">
                     </div>
                     <div class="col-md-4 border-start">
                         <label class="text-success">Board Meeting</label>
-                        <input type="text" name="b_nos[]" value="<?php echo htmlspecialchars($f['board_meet_no'] ?? ''); ?>" class="form-control form-control-sm mb-2" placeholder="Meet No">
-                        <input type="date" name="b_dates[]" value="<?php echo $f['board_meet_date'] ?? ''; ?>" class="form-control form-control-sm">
+                        <input type="text" name="b_nos[]" class="form-control form-control-sm mb-2" placeholder="Meet No">
+                        <input type="date" name="b_dates[]" class="form-control form-control-sm">
                     </div>
                     <div class="col-md-1 d-flex align-items-center justify-content-center">
                         <button type="button" class="btn btn-outline-danger remove-row"><i class="fas fa-trash-alt"></i></button>
