@@ -23,7 +23,7 @@ if (!empty($to_date)) {
     $to_date = $d ? $d->format('Y-m-d') : '';
 }
 
-// 1. Fetch Main File Data (including Meeting Info)
+// 1. Fetch Main File Data
 $stmt = $conn->prepare("SELECT * FROM office_files WHERE id = ?");
 $stmt->bind_param("i", $id);
 $stmt->execute();
@@ -37,8 +37,7 @@ $fac_stmt = $conn->prepare(
      WHERE file_record_id = ?
        AND (? = '' OR sanction_date >= ?)
        AND (? = '' OR sanction_date <= ?)
-       AND (? = '' OR facility_type LIKE CONCAT('%', ?, '%'))
-     ORDER BY sanction_date DESC"
+       AND (? = '' OR facility_type LIKE CONCAT('%', ?, '%')) ORDER BY sanction_date DESC"
 );
 $fac_stmt->bind_param(
     "issssss",
@@ -86,7 +85,6 @@ foreach ($fac_rows as $row) {
     $year_groups[$year]['total'] += $amount;
     $year_groups[$year]['type_totals'][$type] = ($year_groups[$year]['type_totals'][$type] ?? 0) + $amount;
 }
-
 
 krsort($year_groups);
 
@@ -150,23 +148,33 @@ $attachments = $at_stmt->get_result();
         </div>
     <?php endif; ?>
 </div>
+
 <div class="container bg-white shadow rounded p-4">
     <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-2">
         <h4 class="fw-bold">
-    <span class="text-secondary">
-        <i class="fas fa-file-alt"></i> Detailed Record:
-    </span> 
-    
-    <span class="text-primary text-uppercase">
-        <?php echo htmlspecialchars($data['client'] ?? ''); ?>
-    </span>
-</h4>
-
+            <span class="text-secondary">
+                <i class="fas fa-file-alt"></i> Detailed Record:
+            </span> 
+            <br>
+            <label class="form-label">Name of the Client: </label>
+            <span class="text-primary text-uppercase">
+                <?php echo htmlspecialchars($data['client'] ?? ''); ?>
+            </span>
+        </h4>
         <div class="no-print">
             <button onclick="window.print()" class="btn btn-outline-secondary btn-sm"><i class="fas fa-print"></i> Print</button>
             <a href="index.php" class="btn btn-secondary btn-sm">Home</a>
         </div>
     </div>
+
+    <table class="table table-bordered mb-4">
+        <tr>
+            <td class="info-label">Branch</td>
+            <td><?php echo htmlspecialchars(($data['branch_code'] ?? '') . " - " . ($data['branch_name'] ?? '')); ?></td>
+            <td class="info-label">File No</td>
+            <td><?php echo htmlspecialchars($data['file_no'] ?? ''); ?></td>
+        </tr>
+    </table>
 
     <form method="get" action="more_details.php" class="row g-3 mb-4">
         <input type="hidden" name="id" value="<?php echo htmlspecialchars($id); ?>">
@@ -194,15 +202,9 @@ $attachments = $at_stmt->get_result();
                     <strong>Filter active:</strong>
                     <?php
                         $labelParts = [];
-                        if ($from_date) {
-                            $labelParts[] = 'From ' . date('d.m.Y', strtotime($from_date));
-                        }
-                        if ($to_date) {
-                            $labelParts[] = 'To ' . date('d.m.Y', strtotime($to_date));
-                        }
-                        if ($facility_filter) {
-                            $labelParts[] = 'Facility contains "' . htmlspecialchars($facility_filter) . '"';
-                        }
+                        if ($from_date) { $labelParts[] = 'From ' . date('d.m.Y', strtotime($from_date)); }
+                        if ($to_date) { $labelParts[] = 'To ' . date('d.m.Y', strtotime($to_date)); }
+                        if ($facility_filter) { $labelParts[] = 'Facility contains "' . htmlspecialchars($facility_filter) . '"'; }
                         echo implode(' | ', $labelParts);
                     ?>
                 </div>
@@ -234,15 +236,6 @@ $attachments = $at_stmt->get_result();
         </div>
     </div>
 
-    <table class="table table-bordered mb-4">
-        <tr>
-            <td class="info-label">Branch</td>
-            <td><?php echo htmlspecialchars(($data['branch_code'] ?? '') . " - " . ($data['branch_name'] ?? '')); ?></td>
-            <td class="info-label">File No</td>
-            <td><?php echo htmlspecialchars($data['file_no'] ?? ''); ?></td>
-        </tr>
-    </table>
-   
     <h5 class="text-secondary border-bottom pb-1 mb-2"><i class="fas fa-layer-group"></i> Sanction & Facility History</h5>
 
     <?php if (!empty($year_groups)): ?>
@@ -278,7 +271,24 @@ $attachments = $at_stmt->get_result();
                 ?>
 
                 <?php foreach ($rowsByDate as $dateKey => $rows): ?>
-                    <?php $subTotal = 0; ?>
+                    <?php 
+                    $subTotal = 0; 
+                    
+                    // FIXED LOGIC: Use $rows[0] because it holds the data array for this specific group entry
+                    $b_date_raw = $rows[0]['board_meet_date'] ?? '';
+                    if (!empty($b_date_raw) && $b_date_raw !== '0000-00-00' && $b_date_raw !== '1970-01-01' && strtotime($b_date_raw) > 0) {
+                        $display_board_date = date("d.m.Y", strtotime($b_date_raw));
+                    } else {
+                        $display_board_date = 'N/A';
+                    }
+
+                    $c_date_raw = $rows[0]['comm_meet_date'] ?? '';
+                    if (!empty($c_date_raw) && $c_date_raw !== '0000-00-00' && $c_date_raw !== '1970-01-01' && strtotime($c_date_raw) > 0) {
+                        $display_comm_date = date("d.m.Y", strtotime($c_date_raw));
+                    } else {
+                        $display_comm_date = 'N/A';
+                    }
+                    ?>
                     <div class="sanction-header d-flex justify-content-between align-items-center bg-light border p-3 mt-4 rounded-top shadow-sm">
                         <div class="fw-bold text-dark">
                             <i class="fas fa-calendar-check text-primary me-2"></i>
@@ -287,12 +297,12 @@ $attachments = $at_stmt->get_result();
                         </div>
                         <div class="text-end">
                             <div class="small">
-                                <strong>Invet. Committee Meeting No &amp; (Date):</strong> <?php echo htmlspecialchars($rows[0]['comm_meet_no'] ?? 'N/A'); ?>
-                                <span class="text-muted">(<?php echo !empty($rows[0]['comm_meet_date']) ? date('d.m.Y', strtotime($rows[0]['comm_meet_date'])) : 'N/A'; ?>)</span>
+                                <strong>Invest. Committee Meeting No &amp; (Date):</strong> <?php echo htmlspecialchars($rows[0]['comm_meet_no'] ?: 'N/A'); ?>
+                                <span class="text-muted">(<?php echo $display_comm_date; ?>)</span>
                             </div>
                             <div class="small">
-                                <strong>Board Meeting No &amp; (Date):</strong> <?php echo htmlspecialchars($rows[0]['board_meet_no'] ?? 'N/A'); ?>
-                                <span class="text-muted">(<?php echo !empty($rows[0]['board_meet_date']) ? date('d.m.Y', strtotime($rows[0]['board_meet_date'])) : 'N/A'; ?>)</span>
+                                <strong>Board Meeting No &amp; (Date):</strong> <?php echo htmlspecialchars($rows[0]['board_meet_no'] ?: 'N/A'); ?>
+                                <span class="text-muted">(<?php echo $display_board_date; ?>)</span>
                             </div>
                         </div>
                     </div>
@@ -341,42 +351,52 @@ $attachments = $at_stmt->get_result();
         <strong class="fs-5"><?php echo number_format($total_all ?? 0, 2); ?></strong>
     </div>
 
-    <script>
-        function activateYear(year) {
-            var target = document.querySelector('.year-tabs [data-year="' + year + '"]');
-            var panel = document.querySelector('.year-panel[data-year-panel="' + year + '"]');
-            if (!target || !panel) {
-                var firstTab = document.querySelector('.year-tabs [data-year]');
-                if (!firstTab) return;
-                year = firstTab.dataset.year;
-                target = firstTab;
-                panel = document.querySelector('.year-panel[data-year-panel="' + year + '"]');
-            }
-            document.querySelectorAll('.year-tabs [data-year]').forEach(function(btn) {
-                btn.classList.toggle('active', btn.dataset.year === year);
-            });
-            document.querySelectorAll('.year-panel').forEach(function(panelItem) {
-                panelItem.classList.toggle('active', panelItem.dataset.yearPanel === year);
-            });
-            if (history.replaceState) {
-                history.replaceState(null, '', '#' + encodeURIComponent(year));
-            } else {
-                window.location.hash = encodeURIComponent(year);
-            }
+    <div class="mt-4 pt-3 border-top d-flex gap-2 justify-content-end no-print">
+        <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
+            <a href="edit_sanction.php?id=<?php echo $id; ?>" class="btn btn-warning btn-m btn-hover-custom shadow-sm fw-bold px-3">
+                <i class="fas fa-pen-nib me-1"></i> Update Sanction/Meeting
+            </a>
+        <?php endif; ?>
+        <a href="index.php" class="btn btn-secondary btn-m">Home</a>
+    </div>
+</div>
+
+<script>
+    function activateYear(year) {
+        var target = document.querySelector('.year-tabs [data-year="' + year + '"]');
+        var panel = document.querySelector('.year-panel[data-year-panel="' + year + '"]');
+        if (!target || !panel) {
+            var firstTab = document.querySelector('.year-tabs [data-year]');
+            if (!firstTab) return;
+            year = firstTab.dataset.year;
+            target = firstTab;
+            panel = document.querySelector('.year-panel[data-year-panel="' + year + '"]');
         }
-
-        document.querySelectorAll('.year-tabs [data-year]').forEach(function(button) {
-            button.addEventListener('click', function() {
-                activateYear(this.dataset.year);
-            });
+        document.querySelectorAll('.year-tabs [data-year]').forEach(function(btn) {
+            btn.classList.toggle('active', btn.dataset.year === year);
         });
-
-        window.addEventListener('DOMContentLoaded', function() {
-            var hashYear = window.location.hash ? decodeURIComponent(window.location.hash.substring(1)) : '';
-            if (hashYear) {
-                activateYear(hashYear);
-            }
+        document.querySelectorAll('.year-panel').forEach(function(panelItem) {
+            panelItem.classList.toggle('active', panelItem.dataset.yearPanel === year);
         });
-    </script>
+        if (history.replaceState) {
+            history.replaceState(null, '', '#' + encodeURIComponent(year));
+        } else {
+            window.location.hash = encodeURIComponent(year);
+        }
+    }
+
+    document.querySelectorAll('.year-tabs [data-year]').forEach(function(button) {
+        button.addEventListener('click', function() {
+            activateYear(this.dataset.year);
+        });
+    });
+
+    window.addEventListener('DOMContentLoaded', function() {
+        var hashYear = window.location.hash ? decodeURIComponent(window.location.hash.substring(1)) : '';
+        if (hashYear) {
+            activateYear(hashYear);
+        }
+    });
+</script>
 </body>
 </html>

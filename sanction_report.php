@@ -364,7 +364,6 @@ if (isset($_GET['debug']) && $_GET['debug'] === '1') {
                                             <th class="text-end">Amount</th>
                                             <th>Comm. Meet</th>
                                             <th>Board Meet</th>
-                                            <th>Sanction Ref</th>
                                             <th>Record</th>
                                         </tr>
                                     </thead>
@@ -378,7 +377,6 @@ if (isset($_GET['debug']) && $_GET['debug'] === '1') {
                                                 <td class="text-end"><?php echo number_format($row['amount'] ?? 0, 2); ?></td>
                                                 <td><?php echo htmlspecialchars($row['comm_meet_no'] ?? 'N/A'); ?><?php echo !empty($row['comm_meet_date']) ? '<br><small class="text-muted">' . date('d-m-Y', strtotime($row['comm_meet_date'])) . '</small>' : ''; ?></td>
                                                 <td><?php echo htmlspecialchars($row['board_meet_no'] ?? 'N/A'); ?><?php echo !empty($row['board_meet_date']) ? '<br><small class="text-muted">' . date('d-m-Y', strtotime($row['board_meet_date'])) . '</small>' : ''; ?></td>
-                                                <td><?php echo htmlspecialchars($row['sanction_letter_ref_no'] ?? 'N/A'); ?></td>
                                                 <td><a href="view_details.php?id=<?php echo intval($row['file_record_id']); ?>" class="btn btn-sm btn-outline-primary">View</a></td>
                                             </tr>
                                         <?php endforeach; ?>
