@@ -88,11 +88,19 @@ foreach ($fac_rows as $row) {
 
 krsort($year_groups);
 
-// 3. Fetch Attachments
-$at_stmt = $conn->prepare("SELECT * FROM file_attachments WHERE file_record_id = ?");
-$at_stmt->bind_param("i", $id);
-$at_stmt->execute();
-$attachments = $at_stmt->get_result();
+// 3. Fetch Attachments from the correct "attachments" database table
+$attach_query = "SELECT id, file_path, description FROM attachments WHERE file_record_id = ? ORDER BY id ASC";
+$stmt_attach = $conn->prepare($attach_query);
+$stmt_attach->bind_param("i", $id);
+$stmt_attach->execute();
+$attachments_result = $stmt_attach->get_result();
+
+// Cache attachments in memory to prevent breaking loops
+$cached_attachments = [];
+while ($file = $attachments_result->fetch_assoc()) {
+    $cached_attachments[] = $file;
+}
+
 ?>
 
 <!DOCTYPE html>
@@ -274,7 +282,6 @@ $attachments = $at_stmt->get_result();
                     <?php 
                     $subTotal = 0; 
                     
-                    // FIXED LOGIC: Use $rows[0] because it holds the data array for this specific group entry
                     $b_date_raw = $rows[0]['board_meet_date'] ?? '';
                     if (!empty($b_date_raw) && $b_date_raw !== '0000-00-00' && $b_date_raw !== '1970-01-01' && strtotime($b_date_raw) > 0) {
                         $display_board_date = date("d.m.Y", strtotime($b_date_raw));
@@ -328,6 +335,73 @@ $attachments = $at_stmt->get_result();
                             </tr>
                         </tbody>
                     </table>
+
+<div class="card mt-2 mb-4 border-top-0 rounded-0 rounded-bottom shadow-sm">
+    <div class="card-header bg-dark text-white py-2 d-flex justify-content-between align-items-center" style="font-size:0.85rem;">
+        <span class="fw-bold"><i class="fas fa-paperclip text-warning me-2"></i> Workflow Documentation for Sanction Date: <?php echo htmlspecialchars($dateKey); ?></span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-striped align-middle m-0" style="font-size:0.9rem;">
+                <thead class="table-light small text-secondary text-uppercase fw-bold">
+                    <tr>
+                        <th style="width: 80px;" class="text-center">Sl No.</th>
+                        <th style="width: 35%;">Document Description Heading</th>
+                        <th>Server System File Path</th>
+                        <th style="width: 150px;" class="text-center">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php 
+                    // Convert the display loop date (d.m.Y) back to standard database format (Y-m-d)
+                    $db_lookup_date = date('Y-m-d', strtotime($dateKey));
+                    
+                    $scoped_attach_query = "SELECT id, file_path, description FROM attachments WHERE file_record_id = ? AND sanction_date = ? ORDER BY id ASC";
+                    $stmt_scoped = $conn->prepare($scoped_attach_query);
+                    $stmt_scoped->bind_param("is", $id, $db_lookup_date);
+                    $stmt_scoped->execute();
+                    $scoped_attachments = $stmt_scoped->get_result();
+
+                    if ($scoped_attachments && $scoped_attachments->num_rows > 0): 
+                        $sl = 1; 
+                        while ($file = $scoped_attachments->fetch_assoc()): 
+                            $ext = strtolower(pathinfo($file['file_path'], PATHINFO_EXTENSION));
+                            $icon_class = "fa-file-alt text-secondary";
+                            
+                            if ($ext === 'pdf') { $icon_class = "fa-file-pdf text-danger"; }
+                            elseif (in_array($ext, ['doc', 'docx'])) { $icon_class = "fa-file-word text-primary"; }
+                            elseif (in_array($ext, ['xls', 'xlsx'])) { $icon_class = "fa-file-excel text-success"; }
+                            elseif (in_array($ext, ['jpg', 'jpeg', 'png'])) { $icon_class = "fa-file-image text-info"; }
+                    ?>
+                            <tr>
+                                <td class="text-center fw-bold text-muted"><?php echo $sl++; ?></td>
+                                <td class="fw-bold text-dark">
+                                    <i class="fas <?php echo $icon_class; ?> fa-lg me-2"></i>
+                                    <?php echo htmlspecialchars($file['description']); ?>
+                                </td>
+                                <td><code class="small text-muted"><?php echo htmlspecialchars($file['file_path']); ?></code></td>
+                                <td class="text-center">
+                                    <a href="<?php echo htmlspecialchars($file['file_path']); ?>" 
+                                       target="_blank" 
+                                       class="btn btn-xs btn-outline-primary py-1 px-2 fw-bold rounded"
+                                       style="font-size:0.8rem;" download>
+                                        <i class="fas fa-cloud-download-alt me-1"></i> Download
+                                    </a>
+                                </td>
+                            </tr>
+                        <?php endwhile; ?>
+                    <?php else: ?>
+                        <tr>
+                            <td colspan="4" class="text-center py-3 text-muted bg-light small">
+                                <i class="fas fa-info-circle me-1"></i> No unique documentation attachments uploaded on this specific date.
+                            </td>
+                        </tr>
+                    <?php endif; $stmt_scoped->close(); ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
                 <?php endforeach; ?>
 
                 <div class="row row-cols-1 row-cols-md-3 g-2 mt-3 p-3 bg-light rounded-bottom">

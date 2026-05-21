@@ -27,17 +27,7 @@ while($row = $result->fetch_assoc()) {
         $viewTitle = "No History Found";
     }
     
-    // Fetch attachments
-    $attach_sql = "SELECT * FROM file_attachments WHERE file_record_id = $file_id";
-    $attach_res = $conn->query($attach_sql);
-    $attachments_html = ""; 
-
-    while($file = $attach_res->fetch_assoc()) {
-        $file_path = htmlspecialchars($file['file_path'] ?? '');
-        $file_desc = htmlspecialchars($file['description'] ?? 'Download');
-        $attachments_html .= "<a href='$file_path' target='_blank' class='badge bg-info text-decoration-none mb-1 d-block' onclick='event.stopPropagation();'>
-        <i class='fas fa-paperclip'></i> $file_desc</a>";
-    }
+       
 
     echo "<tr>";
     echo "<td>" . htmlspecialchars($row['client'] ?? '') . "</td>";
@@ -48,8 +38,7 @@ while($row = $result->fetch_assoc()) {
     echo "<td>" . htmlspecialchars($row['file_no'] ?? '') . "</td>";
     echo "<td>" . (!empty($row['created_at']) ? date("d-m-Y", strtotime($row['created_at'])) : '') . "</td>";
     echo "<td>" . htmlspecialchars($row['remarks'] ?? '') . "</td>";
-    echo "<td>" . $attachments_html . "</td>";
-
+   
     // Actions Column
     echo "<td>";
     echo "<div class='d-flex gap-1'>"; // This creates a horizontal row with spacing
@@ -62,6 +51,15 @@ while($row = $result->fetch_assoc()) {
         echo "<a href='view_details.php?id=$file_id' class='btn btn-sm $viewBtnClass' title='$viewTitle'><i class='fas fa-eye'></i></a>";
         
         echo "<a href='add_facility.php?id=$file_id' class='btn btn-sm btn-success' title='Add New Sanction'><i class='fas fa-plus-square'></i></a>"; 
+        
+        echo "<a href='more_details.php?id=$file_id' class='btn btn-sm btn-success' title='More Details'><i class='fas'></i>info</a>"; 
+        
+        echo '<a href="assign_proposal.php?id=' . intval($row['id']) . '" class="btn btn-sm btn-warning">
+    <i class="fas fa-user-plus"></i> Assign
+</a>';
+
+
+
         if ($isAdmin) {
             echo "<a href='delete.php?id=$file_id' class='btn btn-sm btn-danger' onclick='return confirm(\"Are you sure?\")'><i class='fas fa-trash'></i></a>";
         }
