@@ -34,10 +34,6 @@ $stmt->execute();
 $data = $stmt->get_result()->fetch_assoc();
 
 // --- 3. FETCH EXISTING ATTACHMENTS ---
-$attach_stmt = $conn->prepare("SELECT * FROM file_attachments WHERE file_record_id = ?");
-$attach_stmt->bind_param("i", $id);
-$attach_stmt->execute();
-$existing_attachments = $attach_stmt->get_result();
 
 // --- 4. HANDLE UPDATE ---
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
@@ -65,37 +61,10 @@ $update->bind_param("ssssssssi", $branch, $division, $client, $cabinet, $shelf, 
     if ($update->execute()) {
 
         // --- ADDED: UPDATE EXISTING DESCRIPTIONS ---
-        if (isset($_POST['existing_descriptions'])) {
-            foreach ($_POST['existing_descriptions'] as $att_id => $new_desc) {
-                $upd_desc = $conn->prepare("UPDATE file_attachments SET description = ? WHERE id = ?");
-                $upd_desc->bind_param("si", $new_desc, $att_id);
-                $upd_desc->execute();
-            }
-        }
+   $msg = "Updated";
 
         // Handle new PDF attachments
-        if (!empty($_FILES['attachments']['name'][0])) {
-            foreach ($_FILES['attachments']['name'] as $key => $name) {
-                if ($_FILES['attachments']['error'][$key] == 0) {
-                    $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
-                    if($ext === 'pdf') {
-                        $desc = $_POST['attachment_descriptions'][$key];
-                        
-                        // --- UPDATED: NAMING LOGIC ---
-                        $clean_client = preg_replace('/[^A-Za-z0-9]/', '', $client);
-                        $clean_desc = preg_replace('/[^A-Za-z0-9]/', '', $desc);
-                        $new_name = $clean_client . "_" . $clean_desc . "_" . uniqid() . ".pdf";
-                        
-                        $new_path = "uploads/" . $new_name;
-                        
-                        move_uploaded_file($_FILES['attachments']['tmp_name'][$key], $new_path);
-                        $ins = $conn->prepare("INSERT INTO file_attachments (file_record_id, file_path, description) VALUES (?, ?, ?)");
-                        $ins->bind_param("iss", $id, $new_path, $desc);
-                        $ins->execute();
-                    }
-                }
-            }
-        }
+     
         // This keeps the user on the edit page and passes a success flag in the URL
 header("Location: edit.php?id=$id&status=success");
 exit;
@@ -172,41 +141,7 @@ exit;
             <label class="fw-bold">Remarks</label>
             <textarea name="remarks" class="form-control"><?=htmlspecialchars($data['remarks'] ?? '')?></textarea>
         </div>
-
-        <div class="mb-4">
-            <h5 class="text-primary">Current Attachments</h5>
-            <div class="list-group">
-                <?php if ($existing_attachments->num_rows > 0): ?>
-                    <?php while($file = $existing_attachments->fetch_assoc()): ?>
-                        <div class="list-group-item d-flex justify-content-between align-items-center">
-                            <div class="flex-grow-1 me-3">
-                                <i class="fas fa-file-pdf text-danger me-2"></i>
-                                <input type="text" name="existing_descriptions[<?=$file['id']?>]" class="form-control form-control-sm d-inline-block w-75" value="<?=htmlspecialchars($file['description'] ?? '')?>" placeholder="Update description">
-                            </div>
-                            <div class="text-nowrap">
-                                <a href="<?=$file['file_path']?>" target="_blank" class="btn btn-sm btn-outline-primary">View</a>
-                                <a href="edit.php?id=<?=$id?>&delete_file=<?=$file['id']?>" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this attachment permanently?')">Delete</a>
-                            </div>
-                        </div>
-                    <?php endwhile; ?>
-                <?php else: ?>
-                    <p class="text-muted small">No attachments found for this record.</p>
-                <?php endif; ?>
-            </div>
-        </div>
-
-        <div class="p-3 bg-light border rounded">
-            <h5 class="text-success">Add New Attachments (PDF Only)</h5>
-            <div id="attachment-container">
-                <div class="row g-2 mb-2 attachment-row">
-                    <div class="col-md-5"><input type="file" name="attachments[]" class="form-control file-input" accept=".pdf"></div>
-                    <div class="col-md-6"><input type="text" name="attachment_descriptions[]" class="form-control desc-input" placeholder="Description (Required)"></div>
-                    <div class="col-md-1"><button type="button" class="btn btn-success w-100" id="add-more">+</button></div>
-                </div>
-            </div>
-        </div>
-
-        <div class="mt-4">
+  <div class="mt-4">
             <button type="submit" class="btn btn-primary px-5">Update Record</button>
             <a href="index.php" class="btn btn-secondary">Cancel</a>
         </div>

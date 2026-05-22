@@ -1,84 +1,126 @@
 <?php
-// Start session only once
 session_start();
-
 include 'db.php';
 
-// Protection: Only allow the 'admin' role to see this page
-// We check for $_SESSION['role'] because username can be anything, but role is what matters
-if (!isset($_SESSION['loggedin']) || ($_SESSION['role'] ?? '') !== 'admin') {
-    header("location: index.php");
+// Security Check (Ensure only logged-in Admins can register new system accounts)
+if (!isset($_SESSION['loggedin'])) { header("location: login.php"); exit; }
+if ($_SESSION['role'] !== 'admin') {
+    echo "<script>alert('Access Denied'); window.location.href='index.php';</script>";
     exit;
 }
 
-$message = "";
+$status = $_GET['status'] ?? null;
 
+// POST Insertion Handler
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $new_user = trim($_POST['username']);
-    $new_pass = $_POST['password'];
-    $new_role = $_POST['role']; // This matches the <select name="role">
+    $username     = trim($_POST['username']);
+    $password     = trim($_POST['password']);
+    $role         = $_POST['role'];
+    $full_name    = trim($_POST['full_name']);
+    $designation  = trim($_POST['designation']);
+    $employee_id  = trim($_POST['employee_id']);
 
-    if (!empty($new_user) && !empty($new_pass) && !empty($new_role)) {
-        $hashed_pass = password_hash($new_pass, PASSWORD_DEFAULT);
+    if (!empty($username) && !empty($password)) {
+        // Securely hash password entry
+        $hashed_password = password_hash($password, PASSWORD_BCRYPT);
 
-        // Check if username already exists
-        $check = $conn->prepare("SELECT id FROM users WHERE username = ?");
-        $check->bind_param("s", $new_user);
-        $check->execute();
-        if ($check->get_result()->num_rows > 0) {
-            $message = "<div class='alert alert-danger'>Username already exists!</div>";
+        // Prepared Statement parsing all six attributes securely
+        $insert_sql = "INSERT INTO users (username, password, role, full_name, designation, employee_id) VALUES (?, ?, ?, ?, ?, ?)";
+        $stmt = $conn->prepare($insert_sql);
+        $stmt->bind_param("ssssss", $username, $hashed_password, $role, $full_name, $designation, $employee_id);
+
+        if ($stmt->execute()) {
+            header("Location: add_user.php?status=success");
+            exit;
         } else {
-            // Insert with Role column included
-            $stmt = $conn->prepare("INSERT INTO users (username, password, role) VALUES (?, ?, ?)");
-            $stmt->bind_param("sss", $new_user, $hashed_pass, $new_role);
-            
-            if ($stmt->execute()) {
-                $message = "<div class='alert alert-success'>User <b>" . htmlspecialchars($new_user) . "</b> created successfully as <b>$new_role</b>!</div>";
-            } else {
-                $message = "<div class='alert alert-danger'>Error: " . $conn->error . "</div>";
-            }
-            $stmt->close();
+            $error_msg = "Execution failed: " . htmlspecialchars($stmt->error);
         }
+        $stmt->close();
+    } else {
+        $error_msg = "Please fill out all fundamental baseline fields.";
     }
 }
 ?>
 
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Add User with Role</title>
+    <title>System Settings - Add Internal User</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body class="bg-light p-5">
 
-<div class="container bg-white p-4 shadow rounded" style="max-width: 500px;">
-    <h3 class="text-center">Create New User</h3>
-    <hr>
-    <?php echo $message; ?>
-    
-    <form method="POST">
-        <div class="mb-3">
-            <label class="form-label fw-bold">Username</label>
-            <input type="text" name="username" class="form-control" required placeholder="Enter username">
+<div class="container" style="max-width: 650px;">
+
+    <?php if ($status === 'success'): ?>
+        <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
+            <i class="fas fa-user-check me-2"></i> <strong>Registration Successful!</strong> The profile record has been added to the master database.
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
-        <div class="mb-3">
-            <label class="form-label fw-bold">Password</label>
-            <input type="password" name="password" class="form-control" required placeholder="Enter password">
+    <?php echo "<script>setTimeout(() => { window.location.href='index.php'; }, 2000);</script>"; ?>
+    <?php endif; ?>
+
+    <?php if (isset($error_msg)): ?>
+        <div class="alert alert-danger shadow-sm" role="alert">
+            <i class="fas fa-exclamation-triangle me-2"></i> <?php echo $error_msg; ?>
         </div>
-        <div class="mb-3">
-            <label class="form-label fw-bold">User Role</label>
-            <select name="role" class="form-select" required>
-                <option value="" disabled selected>Select a role...</option>
-                <option value="user">User (View & Add only)</option>
-                <option value="admin">Admin (Full Control)</option>
-            </select>
+    <?php endif; ?>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-dark text-white p-3 d-flex justify-content-between align-items-center">
+            <span class="fw-bold"><i class="fas fa-user-plus me-2 text-warning"></i> Add New Employee Account</span>
+            <a href="index.php" class="btn btn-sm btn-outline-light" onclick="return confirm('Exit page form details?');"><i class="fas fa-home"></i></a>
         </div>
-        <button type="submit" class="btn btn-primary w-100">Create Account</button>
-        <div class="text-center mt-3">
-            <a href="index.php" class="text-muted text-decoration-none small">← Back to Dashboard</a>
+        <div class="card-body p-4 bg-white">
+            <form method="post" action="add_user.php">
+                
+                <h5 class="text-secondary border-bottom pb-2 mb-3"><i class="fas fa-id-card me-1"></i> Profile Parameters</h5>
+                
+                <div class="row g-3 mb-4">
+                    <div class="col-md-12">
+                        <label class="form-label small text-uppercase fw-bold text-muted">Full Legal Name</label>
+                        <input type="text" name="full_name" class="form-control" placeholder="e.g. Johnathan Doe" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small text-uppercase fw-bold text-muted">Employee ID / Code</label>
+                        <input type="text" name="employee_id" class="form-control" placeholder="Last 4 digits PF" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small text-uppercase fw-bold text-muted">Designation</label>
+                        <input type="text" name="designation" class="form-control" placeholder="e.g. Officer, SO, SPO, AVP, SVP" required>
+                    </div>
+                </div>
+
+                <h5 class="text-secondary border-bottom pb-2 mb-3"><i class="fas fa-key me-1"></i> Access System Authentication</h5>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <label class="form-label small text-uppercase fw-bold text-muted">Account Username</label>
+                        <input type="text" name="username" class="form-control" placeholder="Unique account login nickname" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small text-uppercase fw-bold text-muted">Account System Role</label>
+                        <select name="role" class="form-select" required>
+                            <option value="user" selected>Standard User Account</option>
+                            <option value="admin">Administrative Manager</option>
+                        </select>
+                    </div>
+                    <div class="col-md-12">
+                        <label class="form-label small text-uppercase fw-bold text-muted">Secure Password Access</label>
+                        <input type="password" name="password" class="form-control" placeholder="Enter clean alphanumeric safety string" required>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-end gap-2 pt-3 border-top">
+                    <a href="index.php" class="btn btn-secondary" onclick="return confirm('Cancel registration process?');">Cancel</a>
+                    <button type="submit" class="btn btn-primary px-4 shadow-sm fw-bold">Register User</button>
+                </div>
+            </form>
         </div>
-    </form>
+    </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

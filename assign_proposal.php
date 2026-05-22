@@ -8,6 +8,7 @@ if (!isset($_SESSION['loggedin'])) {
 }
 
 $status_message = '';
+
 // 1. Catch the direct Client ID from the URL link click
 if (isset($_GET['file_id'])) {
     $preset_file_id = intval($_GET['file_id']);
@@ -16,53 +17,77 @@ if (isset($_GET['file_id'])) {
 } else {
     $preset_file_id = 0;
 }
+
 $preset_client_name = '';
 $preset_file_no = '';
 $preset_division = '';
+$preset_branch_name = '';
+$preset_cabinet_name = '';
+$preset_shelf_name = '';
 
-// 2. Fetch the client's information to show inside the form inputs
+// 2. Fetch the client's information from office_files to show inside read-only fields
 if ($preset_file_id > 0) {
-    $client_stmt = $conn->prepare("SELECT client, file_no, division FROM office_files WHERE id = ? AND is_deleted = 0");
+    $client_stmt = $conn->prepare("SELECT client, file_no, division, branch_name, cabinet_name, shelf_name FROM office_files WHERE id = ? AND is_deleted = 0");
     $client_stmt->bind_param("i", $preset_file_id);
     $client_stmt->execute();
     $client_data = $client_stmt->get_result()->fetch_assoc();
     
     if ($client_data) {
-        $preset_client_name = $client_data['client'];
-        $preset_file_no = $client_data['file_no'];
-        $preset_division = $client_data['division'] ?? 'N/A';
+        $preset_client_name  = $client_data['client'];
+        $preset_file_no      = $client_data['file_no'];
+        $preset_division     = $client_data['division'] ?? 'N/A';
+        $preset_branch_name   = $client_data['branch_name'] ?? 'N/A';
+        $preset_cabinet_name  = $client_data['cabinet_name'] ?? 'N/A';
+        $preset_shelf_name    = $client_data['shelf_name'] ?? 'N/A';
     } else {
         $status_message = '<div class="alert alert-danger">Target client file record not found.</div>';
     }
 } else {
-    // If someone accesses this page without clicking an assign link from a client row
     header("Location: index.php");
     exit;
 }
 
 // 3. Handle Assignment Form Submission
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $file_id = $preset_file_id; // Use the locked URL ID safely
-    $user_id = intval($_POST['user_id'] ?? 0);
+    $file_id         = $preset_file_id; 
+    $user_id         = intval($_POST['user_id'] ?? 0);
+    $proposal_status = trim($_POST['proposal_status'] ?? 'Proposal In Preparation');
+    $proposal_amount = trim($_POST['proposal_amount'] ?? '');
+    $proposal_type   = trim($_POST['proposal_type'] ?? '');
 
     if ($file_id > 0 && $user_id > 0) {
-        $stmt = $conn->prepare("UPDATE office_files SET assigned_user_id = ?, proposal_status = 'Proposal In Preparation' WHERE id = ?");
-        $stmt->bind_param("ii", $user_id, $file_id);
         
-        if ($stmt->execute()) {
-            $status_message = '<div class="alert alert-success"><i class="fas fa-check-circle me-1"></i> Officer assigned successfully! Redirecting to tracking board...</div>';
+        $conn->begin_transaction();
+
+        try {
+            // A. Insert the full proposal spec details into the history log ledger table
+            $log_stmt = $conn->prepare("INSERT INTO proposal_assignments (file_id, user_id, proposal_status, proposal_amount, proposal_type) VALUES (?, ?, ?, ?, ?)");
+            $log_stmt->bind_param("iisss", $file_id, $user_id, $proposal_status, $proposal_amount, $proposal_type);
+            $log_stmt->execute();
+            $log_stmt->close();
+
+            // B. FIX: Only update assigned_user_id inside office_files (Removed non-existent proposal_status column)
+            $upd_stmt = $conn->prepare("UPDATE office_files SET assigned_user_id = ? WHERE id = ?");
+            $upd_stmt->bind_param("ii", $user_id, $file_id);
+            $upd_stmt->execute();
+            $upd_stmt->close();
+
+            $conn->commit();
+
+            $status_message = '<div class="alert alert-success"><i class="fas fa-check-circle me-1"></i> Assignment logged and status updated successfully! Redirecting...</div>';
             header("refresh:2;url=proposal_assignments.php");
-        } else {
-            $status_message = '<div class="alert alert-danger">Error saving assignment to database.</div>';
+            
+        } catch (mysqli_sql_exception $e) {
+            $conn->rollback();
+            $status_message = '<div class="alert alert-danger">Database Transaction Error: ' . htmlspecialchars($e->getMessage()) . '</div>';
         }
     } else {
         $status_message = '<div class="alert alert-warning">Please select a valid officer to assign this task.</div>';
     }
 }
 
-// Fetch active system users to populate the assignment dropdown
-$users_query = "SELECT id, username, role FROM users ORDER BY username ASC";
-$users_result = $conn->query($users_query);
+// Fetch active system users for the assignment select box
+$users_result = $conn->query("SELECT id, username, full_name, employee_id FROM users ORDER BY full_name ASC");
 ?>
 
 <!DOCTYPE html>
@@ -75,9 +100,9 @@ $users_result = $conn->query($users_query);
 </head>
 <body class="bg-light p-5">
 
-<div class="container bg-white p-4 shadow rounded" style="max-width: 750px;">
+<div class="container bg-white p-4 shadow rounded" style="max-width: 800px;">
     <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-2">
-        <h4 class="text-primary mb-0"><i class="fas fa-user-check me-2"></i> Assign Proposal Task</h4>
+        <h4 class="text-primary mb-0"><i class="fas fa-user-check me-2"></i> File Assignment Registry Form</h4>
         <a href="index.php" class="btn btn-sm btn-outline-secondary"><i class="fas fa-arrow-left me-1"></i> Back</a>
     </div>
 
@@ -87,46 +112,83 @@ $users_result = $conn->query($users_query);
         
         <div class="card mb-4 border-secondary shadow-sm">
             <div class="card-header bg-secondary text-white fw-bold small">
-                <i class="fas fa-folder text-warning me-1"></i> AUTO-FILLED CLIENT DETAILS
+                <i class="fas fa-archive text-warning me-1"></i> FILE STORAGE METADATA (READ ONLY)
             </div>
             <div class="card-body bg-light">
                 <div class="row g-3">
-                    <div class="col-md-12">
-                        <label class="form-label fw-bold text-muted small mb-1">Client Name</label>
-                        <input type="text" class="form-control bg-white" value="<?php echo htmlspecialchars($preset_client_name); ?>" readonly disabled>
+                    <div class="col-md-8">
+                        <label class="form-label fw-bold text-muted small mb-1">Client Title Account</label>
+                        <input type="text" class="form-control bg-white text-dark fw-bold" value="<?php echo htmlspecialchars($preset_client_name); ?>" readonly disabled>
                     </div>
                     
-                    <div class="col-md-6">
-                        <label class="form-label fw-bold text-muted small mb-1">File Number</label>
-                        <input type="text" class="form-control bg-white font-monospace" value="<?php echo htmlspecialchars($preset_file_no); ?>" readonly disabled>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold text-muted small mb-1">Branch Name</label>
+                        <input type="text" class="form-control bg-white" value="<?php echo htmlspecialchars($preset_branch_name); ?>" readonly disabled>
                     </div>
-                    
-                    <div class="col-md-6">
-                        <label class="form-label fw-bold text-muted small mb-1">Division Branch</label>
-                        <input type="text" class="form-control bg-white" value="<?php echo htmlspecialchars($preset_division); ?>" readonly disabled>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold text-muted small mb-1">Cabinet Unit Name</label>
+                        <input type="text" class="form-control bg-white" value="<?php echo htmlspecialchars($preset_cabinet_name); ?>" readonly disabled>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold text-muted small mb-1">Shelf Unit Position</label>
+                        <input type="text" class="form-control bg-white" value="<?php echo htmlspecialchars($preset_shelf_name); ?>" readonly disabled>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="mb-4">
-            <label class="form-label fw-bold text-primary"><i class="fas fa-user-tie me-1"></i> Assign to Officer / Relationship Manager</label>
-            <select name="user_id" class="form-select border-primary form-select-lg" required>
-                <option value="">-- Click to Select Assignee --</option>
-                <?php while($user = $users_result->fetch_assoc()): ?>
-                    <option value="<?php echo $user['id']; ?>">
-                        <?php echo htmlspecialchars(strtoupper($user['username']) . " (" . ucfirst($user['role']) . ")"); ?>
-                    </option>
-                <?php endwhile; ?>
-            </select>
-            <div class="form-text">This selected user will be responsible for gathering information and preparing the business proposal.</div>
+        <div class="card mb-4 border-primary shadow-sm">
+            <div class="card-header bg-primary text-white fw-bold small">
+                <i class="fas fa-edit me-1"></i> PROPOSAL SPECS & DISPATCH CONTROLS
+            </div>
+            <div class="card-body bg-white">
+                <div class="row g-3">
+                    
+                    <div class="col-md-12">
+                        <label class="form-label fw-bold text-primary small mb-1">Assign to Officer / Relationship Manager</label>
+                        <select name="user_id" class="form-select border-primary form-select-lg" required>
+                            <option value="">-- Click to Select Assignee --</option>
+                            <?php while($user = $users_result->fetch_assoc()): ?>
+                                <option value="<?php echo $user['id']; ?>">
+                                    <?php 
+                                    $display_name = !empty($user['full_name']) ? strtoupper($user['full_name']) : strtoupper($user['username']);
+                                    echo htmlspecialchars($display_name . " (" . ($user['employee_id'] ?? 'No ID') . ")"); 
+                                    ?>
+                                </option>
+                            <?php endwhile; ?>
+                        </select>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold text-muted small mb-1">Proposal Type / Facility Mode</label>
+                        <input type="text" name="proposal_type" class="form-control border-primary" placeholder="e.g., Term Loan, Working Capital" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold text-muted small mb-1">Proposal Amount Assessed</label>
+                        <input type="text" name="proposal_amount" class="form-control border-primary font-monospace" placeholder="e.g., 5,000,000" required>
+                    </div>
+
+                    <div class="col-md-12">
+                        <label class="form-label fw-bold text-danger small mb-1">Select Workflow Pipeline Stage Status</label>
+                        <select name="proposal_status" class="form-select border-danger bg-light-subtle fw-bold">
+                            <option value="Proposal In Preparation">Proposal In Preparation</option>
+                            <option value="Committee Memo">Committee Memo</option>
+                            <option value="Committee Minutes">Committee Minutes</option>
+                            <option value="Office Note">Office Note</option>
+                            <option value="Board Memo">Board Memo</option>
+                            <option value="Board Minutes">Board Minutes</option>
+                            <option value="Approval/Sanction">Approval / Sanction</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <div class="pt-3 border-top d-flex gap-2">
-            <button type="submit" class="btn btn-primary px-5 shadow">
-                <i class="fas fa-check me-1"></i> Confirm & Save Assignment
+        <div class="pt-3 d-flex gap-2">
+            <button type="submit" class="btn btn-primary btn-lg px-5 shadow">
+                <i class="fas fa-save me-1"></i> Deploy & Save Assignment Logs
             </button>
-            <a href="proposal_assignments.php" class="btn btn-light border">Cancel</a>
+            <a href="proposal_assignments.php" class="btn btn-lg btn-light border">Cancel Execution</a>
         </div>
     </form>
 </div>

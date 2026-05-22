@@ -2,15 +2,38 @@
 session_start();
 include 'db.php';
 
-if (!isset($_SESSION['loggedin'])) { header("location: login.php"); exit; }
+if (!isset($_SESSION['loggedin'])) {
+    header('Location: login.php');
+    exit;
+}
 
-$id = $_GET['id'] ?? null;
-if (!$id) { header("location: index.php"); exit; }
+// ================= FLEXIBLE PARAMETER FALLBACK DETECTION =================
+// Catch either 'file_id' (from dashboard redirect) or 'id' (from standard navigation)
+if (isset($_GET['file_id'])) {
+    $id = intval($_GET['file_id']);
+} elseif (isset($_GET['id'])) {
+    $id = intval($_GET['id']);
+} else {
+    $id = 0;
+}
 
+// Guardrail Fallback: If no valid identifier was successfully captured, return safely to dashboard index
+if ($id <= 0) {
+    header("Location: index.php");
+    exit;
+}
+
+// Fetch master record information using our parsed identifier variable
 $stmt = $conn->prepare("SELECT client, file_no FROM office_files WHERE id = ?");
 $stmt->bind_param("i", $id);
 $stmt->execute();
 $main_data = $stmt->get_result()->fetch_assoc();
+
+// If the file identifier doesn't point to a real database entry, clear the buffer and drop back
+if (!$main_data) {
+    header("Location: index.php");
+    exit;
+}
 
 $sanction_ref_prefix = 'FSIB/HO/INVT/';
 $status_message = '';
@@ -70,21 +93,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         'file_sanction_letter' => 'Sanction Letter'
     ];
 
-   foreach ($document_map as $input_name => $description) {
-    if (!empty($_FILES[$input_name]['name'])) {
-        $safe_filename = time() . '_' . preg_replace("/[^a-zA-Z0-9\._-]/", "_", basename($_FILES[$input_name]['name']));
-        $target_filepath = $upload_dir . $safe_filename;
-        
-        if (move_uploaded_file($_FILES[$input_name]['tmp_name'], $target_filepath)) {
-            // We save both the client ID and the precise sanction date for this batch
-            $attach_sql = "INSERT INTO attachments (file_record_id, sanction_date, file_path, description) VALUES (?, ?, ?, ?)";
-            $attach_stmt = $conn->prepare($attach_sql);
-            $attach_stmt->bind_param("isss", $id, $f_date, $target_filepath, $description);
-            $attach_stmt->execute();
-            $attach_stmt->close();
+    foreach ($document_map as $input_name => $description) {
+        if (!empty($_FILES[$input_name]['name'])) {
+            $safe_filename = time() . '_' . preg_replace("/[^a-zA-Z0-9\._-]/", "_", basename($_FILES[$input_name]['name']));
+            $target_filepath = $upload_dir . $safe_filename;
+            
+            if (move_uploaded_file($_FILES[$input_name]['tmp_name'], $target_filepath)) {
+                // We save both the client ID and the precise sanction date for this batch
+                $attach_sql = "INSERT INTO attachments (file_record_id, sanction_date, file_path, description) VALUES (?, ?, ?, ?)";
+                $attach_stmt = $conn->prepare($attach_sql);
+                $attach_stmt->bind_param("isss", $id, $f_date, $target_filepath, $description);
+                $attach_stmt->execute();
+                $attach_stmt->close();
+            }
         }
     }
-}
 
     header("Location: more_details.php?id=$id&status=added");
     exit;
@@ -136,6 +159,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <meta charset="UTF-8">
     <title>Add Sanction & Meetings</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -146,7 +170,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <h4 class="text-primary mb-4"><i class="fas fa-file-signature"></i> Add New Sanction & Approval</h4>
     
     <div class="alert alert-secondary py-2">
-        <strong>Client:</strong> <?php echo htmlspecialchars($main_data['client']); ?> | <strong>File:</strong> <?php echo htmlspecialchars($main_data['file_no']); ?>
+        <strong>Client:</strong> <?php echo htmlspecialchars($main_data['client'] ?? 'N/A'); ?> | <strong>File:</strong> <?php echo htmlspecialchars($main_data['file_no'] ?? 'N/A'); ?>
     </div>
 
     <form method="POST" enctype="multipart/form-data">
