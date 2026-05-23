@@ -1,6 +1,7 @@
 <?php
 session_start();
 include 'db.php';
+include 'header.php';
 if (!isset($_SESSION['loggedin']) || ($_SESSION['role'] ?? '') !== 'admin') { 
     header("location: index.php"); 
     exit; 
@@ -76,8 +77,8 @@ exit;
 <html lang="en">
 <head>
     <title>Edit Record</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="assets/css/bootstrap.min.css">
+    <link rel="stylesheet" href="assets/css/all.min.css">
 </head>
 <body class="bg-light p-5">
 <div class="container bg-white p-4 shadow rounded" style="max-width: 800px;">
@@ -181,5 +182,6 @@ exit;
         }
     });
 </script>
+<?php include 'footer.php'; ?>
 </body>
 </html>

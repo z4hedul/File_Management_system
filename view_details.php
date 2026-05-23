@@ -1,7 +1,7 @@
 <?php
 session_start();
 include 'db.php'; // Your database connection file
-
+include 'header.php'; // Your header file with Bootstrap and FontAwesome links
 $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 
 // 1. Fetch File Information from CORRECT TABLE: office_files
@@ -29,8 +29,8 @@ $history = $history_stmt->get_result();
 <head>
     <meta charset="UTF-8">
     <title>File Details & History</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="assets/css/bootstrap.min.css">
+    <link rel="stylesheet" href="assets/css/all.min.css">
     <style>
         body { background-color: #f4f7f6; font-family: 'Segoe UI', sans-serif; }
         .timeline { border-left: 3px solid #1e3a8a; position: relative; padding-left: 30px; margin-left: 10px; }
@@ -114,6 +114,6 @@ $history = $history_stmt->get_result();
         </div>
     </div>
 </div>
-
+<?php include 'footer.php'; ?>
 </body>
 </html>

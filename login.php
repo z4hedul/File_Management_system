@@ -61,7 +61,7 @@ if ($result->num_rows === 1) {
 <html>
 <head>
     <title>Login - File Management System</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="assets/css/bootstrap.min.css">
     <style>
         body { background-color: #f8f9fa; display: flex; align-items: center; height: 100vh; }
         .login-container { max-width: 500px; margin: auto; }
@@ -97,6 +97,6 @@ if ($result->num_rows === 1) {
         </div>
     </div>
 </div>
-
+<?php include 'footer.php'; ?>
 </body>
 </html>

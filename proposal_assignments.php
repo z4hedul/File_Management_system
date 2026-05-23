@@ -1,7 +1,7 @@
 <?php
 session_start();
 include 'db.php';
-
+include 'header.php';
 if (!isset($_SESSION['loggedin'])) {
     header("location: login.php");
     exit;
@@ -10,6 +10,39 @@ if (!isset($_SESSION['loggedin'])) {
 $current_user_id = $_SESSION['id'] ?? $_SESSION['user_id'] ?? 0; 
 $user_role       = $_SESSION['role'] ?? ''; 
 $action_msg = "";
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_type']) && $_POST['action_type'] === 'delete_assignment') {
+    // Basic verification boundary check: only allow admins to run deletions
+    if (isset($user_role) && $user_role === 'admin') {
+        $delete_id = intval($_POST['assignment_id']);
+        
+        // Option A: Hard Delete (completely removes row from system log database)
+        $delete_sql = "DELETE FROM proposal_assignments WHERE assignment_id = ?"; 
+        
+        /* // Option B: Soft Delete (Uncomment if your table features a status/is_deleted column layout)
+        $delete_sql = "UPDATE proposal_assignments SET assignment_log_status = 'Deleted', assignment_remarks = 'Removed by Admin' WHERE assignment_id = ?";
+        */
+        
+        $stmt = $conn->prepare($delete_sql);
+        if ($stmt) {
+            $stmt->bind_param("i", $delete_id);
+            if ($stmt->execute()) {
+                $action_msg = '<div class="alert alert-success alert-dismissible fade show shadow-sm border-start border-success border-4" role="alert">
+                                <i class="fas fa-check-circle me-2"></i><strong>Success!</strong> Assignment mapping pipeline record was successfully purged from system ledger indices.
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                               </div>';
+            } else {
+                $action_msg = '<div class="alert alert-danger shadow-sm"><strong>Database Error:</strong> Could not complete record elimination routing metrics.</div>';
+            }
+            $stmt->close();
+        }
+        
+        // Force refresh working counts parameters variables on local window layout
+        echo "<script>window.location.href='proposal_assignments.php';</script>";
+        exit;
+    } else {
+        $action_msg = '<div class="alert alert-danger shadow-sm"><strong>Access Denied:</strong> Only Authorized Corporate System Administrators possess ledger deletion clearing permissions.</div>';
+    }
+}
 
 // ================= INLINE FORM PROCESSOR INTERFACE =================
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action_type'])) {
@@ -156,8 +189,8 @@ $total_records = $ledger_data->num_rows;
 <head>
     <meta charset="UTF-8">
     <title>Proposal Dashboard Panel</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="stylesheet" href="assets/css/bootstrap.min.css">
+    <link rel="stylesheet" href="assets/css/all.min.css">
 </head>
 <body class="bg-light p-4">
 <div class="container-fluid" style="max-width: 1600px;">
@@ -216,7 +249,7 @@ $total_records = $ledger_data->num_rows;
 
     <div class="card shadow-sm border-0 mb-4 bg-white">
         <div class="card-header bg-dark text-white fw-bold d-flex justify-content-between align-items-center py-2" style="font-size:14px; cursor: pointer;" onclick="toggleWorkforcePanel()">
-            <span><i class="fas fa-network-wired text-warning me-2"></i> LIVE WORKFORCE RESOURCE MATRIX INDICATOR</span>
+            <span><i class="fas fa-network-wired text-warning me-2"></i> Officer of Current Client and Ready to Take Assignments</span>
             <span id="panel-toggle-icon"><i class="fas fa-chevron-down"></i> Click to Expand</span>
         </div>
         <div id="workforce-panel-body" class="card-body bg-light-subtle d-none border-bottom">
@@ -501,6 +534,7 @@ $total_records = $ledger_data->num_rows;
                                         <span class="text-muted small italic opacity-75"><i class="fas fa-user-slash me-1"></i> View Only</span>
                                     <?php endif; ?>
                                 </td>
+                                
                             </tr>
                             <?php endwhile; ?>
                         <?php else: ?>
@@ -566,5 +600,6 @@ function toggleWorkforcePanel() {
     }
 }
 </script>
+<?php include 'footer.php'; ?>
 </body>
 </html>

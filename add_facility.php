@@ -1,14 +1,13 @@
 <?php
 session_start();
 include 'db.php';
-
+include 'header.php';
 if (!isset($_SESSION['loggedin'])) {
     header('Location: login.php');
     exit;
 }
 
 // ================= FLEXIBLE PARAMETER FALLBACK DETECTION =================
-// Catch either 'file_id' (from dashboard redirect) or 'id' (from standard navigation)
 if (isset($_GET['file_id'])) {
     $id = intval($_GET['file_id']);
 } elseif (isset($_GET['id'])) {
@@ -17,7 +16,6 @@ if (isset($_GET['file_id'])) {
     $id = 0;
 }
 
-// Guardrail Fallback: If no valid identifier was successfully captured, return safely to dashboard index
 if ($id <= 0) {
     header("Location: index.php");
     exit;
@@ -29,12 +27,12 @@ $stmt->bind_param("i", $id);
 $stmt->execute();
 $main_data = $stmt->get_result()->fetch_assoc();
 
-// If the file identifier doesn't point to a real database entry, clear the buffer and drop back
 if (!$main_data) {
     header("Location: index.php");
     exit;
 }
 
+$client_name = $main_data['client'] ?? 'Unknown_Client';
 $sanction_ref_prefix = 'FSIB/HO/INVT/';
 $status_message = '';
 
@@ -69,7 +67,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $f_stmt->bind_param("isdssssss", $id, $type, $amt, $f_date, $s_ref, $c_no, $c_date, $b_no, $b_date);
                 $f_stmt->execute();
                 
-                // Grab the ID of the first facility in this sanction block to link the files to
                 if ($last_facility_id === null) {
                     $last_facility_id = $conn->insert_id;
                 }
@@ -78,12 +75,36 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     }
 
-    // 2. Handle File Uploads and tie them to the specific facility batch ID
+    // 2. Handle File Uploads (Standard Workflow + Custom Ad-Hoc Attachments)
     $upload_dir = "uploads/";
     if (!is_dir($upload_dir)) { 
         mkdir($upload_dir, 0777, true); 
     }
 
+    // Helper function to process individual file blocks safely
+    $process_upload = function($file_array, $description) use ($id, $f_date, $client_name, $upload_dir, $conn) {
+        if (!empty($file_array['name'])) {
+            $ext = pathinfo($file_array['name'], PATHINFO_EXTENSION);
+            
+            // Generate clean name formatting: ClientName-Description-SanctionDate.ext
+            $raw_filename = $client_name . '-' . $description . '-' . $f_date;
+            $clean_filename = preg_replace("/[^a-zA-Z0-9_-]/", "_", $raw_filename);
+            
+            // Append Unix timestamp to prevent file collision errors if the exact form is re-run
+            $final_name = time() . '_' . $clean_filename . '.' . $ext;
+            $target_filepath = $upload_dir . $final_name;
+            
+            if (move_uploaded_file($file_array['tmp_name'], $target_filepath)) {
+                $attach_sql = "INSERT INTO attachments (file_record_id, sanction_date, file_path, description) VALUES (?, ?, ?, ?)";
+                $attach_stmt = $conn->prepare($attach_sql);
+                $attach_stmt->bind_param("isss", $id, $f_date, $target_filepath, $description);
+                $attach_stmt->execute();
+                $attach_stmt->close();
+            }
+        }
+    };
+
+    // Process the standard static fields
     $document_map = [
         'file_office_note'     => 'Office Note',
         'file_comm_memo'       => 'Committee Memo',
@@ -94,17 +115,30 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     ];
 
     foreach ($document_map as $input_name => $description) {
-        if (!empty($_FILES[$input_name]['name'])) {
-            $safe_filename = time() . '_' . preg_replace("/[^a-zA-Z0-9\._-]/", "_", basename($_FILES[$input_name]['name']));
-            $target_filepath = $upload_dir . $safe_filename;
-            
-            if (move_uploaded_file($_FILES[$input_name]['tmp_name'], $target_filepath)) {
-                // We save both the client ID and the precise sanction date for this batch
-                $attach_sql = "INSERT INTO attachments (file_record_id, sanction_date, file_path, description) VALUES (?, ?, ?, ?)";
-                $attach_stmt = $conn->prepare($attach_sql);
-                $attach_stmt->bind_param("isss", $id, $f_date, $target_filepath, $description);
-                $attach_stmt->execute();
-                $attach_stmt->close();
+        if (isset($_FILES[$input_name])) {
+            $process_upload($_FILES[$input_name], $description);
+        }
+    }
+
+    // Process dynamic "Add More" custom attachments
+    if (isset($_FILES['custom_attachments']) && isset($_POST['custom_descriptions'])) {
+        foreach ($_FILES['custom_attachments']['name'] as $index => $name) {
+            if (!empty($name)) {
+                $custom_desc = trim($_POST['custom_descriptions'][$index]);
+                if (empty($custom_desc)) {
+                    $custom_desc = "Additional Document " . ($index + 1);
+                }
+
+                // Reconstruct a standard $_FILES array mapping for our closure engine
+                $custom_file_block = [
+                    'name'     => $_FILES['custom_attachments']['name'][$index],
+                    'type'     => $_FILES['custom_attachments']['type'][$index],
+                    'tmp_name' => $_FILES['custom_attachments']['tmp_name'][$index],
+                    'error'    => $_FILES['custom_attachments']['error'][$index],
+                    'size'     => $_FILES['custom_attachments']['size'][$index]
+                ];
+
+                $process_upload($custom_file_block, $custom_desc);
             }
         }
     }
@@ -161,8 +195,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <head>
     <meta charset="UTF-8">
     <title>Add Sanction & Meetings</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="assets/css/bootstrap.min.css">
+    <link rel="stylesheet" href="assets/css/all.min.css">
 </head>
 <body class="bg-light p-5">
 
@@ -174,6 +208,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     </div>
 
     <form method="POST" enctype="multipart/form-data">
+        <!-- APPROVAL & DATE DETAILS -->
         <div class="card mb-4 border-primary shadow-sm">
             <div class="card-header bg-primary text-white fw-bold small">APPROVAL & DATE DETAILS</div>
             <div class="card-body bg-light">
@@ -213,12 +248,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             </div>
         </div>
 
+        <!-- DOCUMENT ATTACHMENTS CARD -->
         <div class="card mb-4 border-success shadow-sm">
-            <div class="card-header bg-success text-white fw-bold small">
-                <i class="fas fa-paperclip me-1"></i> REQUIRED WORKFLOW DOCUMENT ATTACHMENTS
+            <div class="card-header bg-success text-white fw-bold small d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-paperclip me-1"></i> REQUIRED WORKFLOW DOCUMENT ATTACHMENTS</span>
+                <button type="button" class="btn btn-light btn-sm fw-bold text-success" id="add-more-attachments" title="Add Custom Document Row">
+                    <i class="fas fa-plus-circle"></i> Add More Docs
+                </button>
             </div>
             <div class="card-body bg-light">
-                <div class="row g-3">
+                <!-- Row containing standard document nodes -->
+                <div class="row g-3" id="static-attachments-container">
                     <div class="col-md-4">
                         <label class="form-label small fw-bold text-secondary">Office Note</label>
                         <input type="file" name="file_office_note" class="form-control border-success">
@@ -244,9 +284,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         <input type="file" name="file_sanction_letter" class="form-control border-success">
                     </div>
                 </div>
+
+                <!-- Targeted container wrapper where dynamic custom attachments inject -->
+                <div id="dynamic-attachments-container" class="mt-2"></div>
             </div>
         </div>
 
+        <!-- APPROVED FACILITIES -->
         <h6 class="fw-bold mb-3"><i class="fas fa-list"></i> Approved Facilities</h6>
         <div id="facility-container">
             <div class="row g-2 mb-3 facility-row border-bottom pb-3">
@@ -282,14 +326,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <button type="submit" class="btn btn-primary px-5 shadow">Save All Entry</button>
             <a href="more_details.php?id=<?php echo $id; ?>" class="btn btn-outline-secondary">Details</a>
             <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
-                <a href="edit_sanction.php?id=<?php echo $id; ?>" class="btn btn-warning btn-m btn-hover-custom shadow-sm fw-bold px-3">
-                <i class="fas fa-pen-nib me-1"></i> Update Sanction/Meeting</a>
+                <a href="edit_facility.php?id=<?php echo $id; ?>" class="btn btn-warning btn-m btn-hover-custom shadow-sm fw-bold px-3">
+                <i class="fas fa-pen-nib me-1"></i> Update Facility</a>
             <?php endif; ?>
             <a href="index.php" class="btn btn-secondary btn-m">Home</a>
         </div>
     </form>
 </div>
+
 <script>
+    // Handles custom selection toggles for facility structural options
     document.addEventListener('change', function(e) {
         if (e.target.classList.contains('facility-type-select')) {
             const otherInput = e.target.closest('.facility-row').querySelector('.facility-type-other');
@@ -304,6 +350,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     });
 
+    // Committee and Board configuration toggles
     const commToggle = document.getElementById('comm-toggle');
     const commGroup = document.getElementById('comm-meet-group');
     commToggle && commToggle.addEventListener('click', function() {
@@ -342,6 +389,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     });
 
+    // Facility duplication array handler
     document.getElementById('add-more').onclick = function() {
         let container = document.getElementById('facility-container');
         let newRow = document.createElement('div');
@@ -369,11 +417,40 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         container.appendChild(newRow);
     };
 
+    // JAVASCRIPT: Dynamic Attachment Logic Injection Engine
+    document.getElementById('add-more-attachments').onclick = function() {
+        let container = document.getElementById('dynamic-attachments-container');
+        let newRow = document.createElement('div');
+        newRow.className = 'row g-3 mb-2 pt-2 border-top alignment-row';
+        newRow.innerHTML = `
+            <div class="col-md-5">
+                <label class="form-label small fw-bold text-success">Custom Document Description</label>
+                <input type="text" name="custom_descriptions[]" class="form-control border-success" placeholder="e.g. Audited Financial Statements" required>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label small fw-bold text-secondary">Upload File</label>
+                <input type="file" name="custom_attachments[]" class="form-control border-success" required>
+            </div>
+            <div class="col-md-1 d-flex align-items-end">
+                <button type="button" class="btn btn-outline-danger remove-attachment-row w-100" title="Delete Row">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>`;
+        container.appendChild(newRow);
+    };
+
+    // Shared global click element interceptor
     document.addEventListener('click', function(e){
         if(e.target.closest('.remove-row')) {
             e.target.closest('.facility-row').remove();
         }
+        if(e.target.closest('.remove-attachment-row')) {
+            e.target.closest('.alignment-row').remove();
+        }
     });
 </script>
+<?php
+include 'footer.php';
+?>
 </body>
 </html>

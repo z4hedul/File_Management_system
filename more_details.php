@@ -1,7 +1,7 @@
 <?php
 session_start();
 include 'db.php';
-
+include 'header.php';
 if (!isset($_SESSION['loggedin'])) {
     header("location: index.php");
     exit;
@@ -108,8 +108,8 @@ while ($file = $attachments_result->fetch_assoc()) {
 <head>
     <meta charset="UTF-8">
     <title>Details - <?php echo htmlspecialchars($data['client'] ?? ''); ?></title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="assets/css/bootstrap.min.css">
+    <link rel="stylesheet" href="assets/css/all.min.css">
     <style>
         .sanction-header { background-color: #e9ecef; font-weight: bold; padding: 8px 15px; border-left: 5px solid #0d6efd; margin-top: 20px; }
         .info-label { background-color: #f8f9fa; font-weight: bold; width: 25%; }
@@ -427,8 +427,8 @@ while ($file = $attachments_result->fetch_assoc()) {
 
     <div class="mt-4 pt-3 border-top d-flex gap-2 justify-content-end no-print">
         <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
-            <a href="edit_sanction.php?id=<?php echo $id; ?>" class="btn btn-warning btn-m btn-hover-custom shadow-sm fw-bold px-3">
-                <i class="fas fa-pen-nib me-1"></i> Update Sanction/Meeting
+            <a href="edit_facility.php?id=<?php echo $id; ?>" class="btn btn-warning btn-m btn-hover-custom shadow-sm fw-bold px-3">
+                <i class="fas fa-pen-nib me-1"></i> Update Facility/Meeting
             </a>
         <?php endif; ?>
         <a href="index.php" class="btn btn-secondary btn-m">Home</a>
@@ -472,5 +472,6 @@ while ($file = $attachments_result->fetch_assoc()) {
         }
     });
 </script>
+<?php include 'footer.php'; ?>
 </body>
 </html>

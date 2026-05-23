@@ -3,7 +3,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 include 'db.php';
-
+include 'header.php';
 if (!isset($_SESSION['loggedin'])) {
     header("location: login.php");
     exit;
@@ -37,37 +37,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if ($stmt->execute()) {
         $last_id = $conn->insert_id; 
 
-        // 2. Handle Multiple Attachments
-        if (!empty($_FILES['attachments']['name'][0])) {
-            $upload_dir = "uploads/";
-            if (!is_dir($upload_dir)) mkdir($upload_dir, 0777, true);
-
-            foreach ($_FILES['attachments']['name'] as $key => $name) {
-                if ($_FILES['attachments']['error'][$key] == 0) {
-                    $tmp_name = $_FILES['attachments']['tmp_name'][$key];
-                    $desc = $_POST['attachment_descriptions'][$key] ?? '';
-                    
-                    $file_ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
-                    
-                    // Only process if it is a PDF
-                    if ($file_ext === 'pdf') {
-                        // Naming Logic: Sanitize Client and Description for the filename
-                        $clean_client = preg_replace('/[^A-Za-z0-9]/', '', $client);
-                        $clean_desc = preg_replace('/[^A-Za-z0-9]/', '', $desc);
-                        
-                        // New Filename format: Client_Description_UniqueID.pdf
-                        $new_filename = $clean_client . "_" . $clean_desc . "_" . uniqid() . ".pdf";
-                        $target_file = $upload_dir . $new_filename;
-
-                        if (move_uploaded_file($tmp_name, $target_file)) {
-                            $attach_stmt = $conn->prepare("INSERT INTO file_attachments (file_record_id, file_path, description) VALUES (?, ?, ?)");
-                            $attach_stmt->bind_param("iss", $last_id, $target_file, $desc);
-                            $attach_stmt->execute();
-                        }
-                    }
-                }
-            }
-        }
+        
         $message = "<div class='alert alert-success'>Record and PDF attachments saved successfully! <a href='index.php'>View Table</a></div>";
     } else {
         $message = "<div class='alert alert-danger'>Error: " . $conn->error . "</div>";
@@ -80,16 +50,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <head>
     <meta charset="UTF-8">
     <title>Add New File Record</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="style/style_add_record_cabinet.css">
-</head>
+    <link rel="stylesheet" href="assets/css/bootstrap.min.css">
+    <link rel="stylesheet" href="assets/css/all.min.css">
+   </head>
 <body class="bg-light p-5">
 
 <div class="container" style="max-width: 850px;">
     <div class="card shadow border-0">
         <div class="card-header bg-primary text-white text-center p-3">
-            <h4 class="mb-0">Add Record with PDF Attachments</h4>
+            <h4 class="mb-0">Add Record</h4>
         </div>
         <div class="card-body p-4">
             <?php echo $message; ?>
@@ -137,28 +106,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         <input type="text" name="file_no" class="form-control" placeholder="Serial no of cabinet" required>
                     </div>
                 </div>
-                    
                 <div class="mb-4">
                     <label class="form-label fw-bold">Remarks</label>
                     <textarea name="remarks" class="form-control" rows="2" placeholder="Additional notes..."></textarea>
-                </div>
-
-                <div class="p-3 bg-light rounded border mb-4">
-                    <h5 class="text-secondary mb-3"><i class="fas fa-paperclip"></i> PDF Attachments</h5>
-                    <div id="attachment-container">
-                        <div class="row g-2 mb-2 attachment-row">
-                            <div class="col-md-5">
-                               <input type="file" name="attachments[]" class="form-control file-input" accept=".pdf">
-                            </div>
-                            <div class="col-md-6">
-                                <input type="text" name="attachment_descriptions[]" class="form-control desc-input" placeholder="Description (e.g. Office Note, Board Memo etc))">
-                            </div>
-                            <div class="col-md-1">
-                                <button type="button" class="btn btn-success w-100" id="add-more"><i class="fas fa-plus"></i></button>
-                            </div>
-                        </div>
-                    </div>
-                    <small class="text-muted">Only PDF files are allowed. Description is required for each file.</small>
                 </div>
 
                 <div class="d-flex gap-2">
@@ -225,5 +175,8 @@ document.addEventListener('change', function(e) {
     }
 });
 </script>
+<?php
+include 'footer.php';
+?>
 </body>
 </html>

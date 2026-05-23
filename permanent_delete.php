@@ -1,7 +1,7 @@
 <?php
 session_start();
 include 'db.php';
-
+include 'header.php';
 // 1. SECURITY CHECK: Only logged-in Admins should be able to delete forever
 if (!isset($_SESSION['loggedin']) || $_SESSION['role'] !== 'admin') {
     die("<div style='color:red; font-family:sans-serif; padding:20px;'>

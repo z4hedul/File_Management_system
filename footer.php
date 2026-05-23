@@ -1,66 +1,52 @@
-<!-- footer.php -->
 <style>
-.custom-footer {
-    /* Subtle gradient background for a modern look */
+.custom-footer.fixed-bottom {
     background: linear-gradient(to bottom, #ffffff, #f8f9fa);
     color: #495057;
-    border-top: 2px solid #197e2f; /* Deep Navy Bank Blue top border */
-    padding-top: 20px;
-    padding-bottom: 20px;
-    margin-top: 30px;
+    border-top: 3px solid #197e2f; /* FSIB Emerald Accent Line */
+    padding-top: 12px;
+    padding-bottom: 12px;
+    box-shadow: 0 -5px 15px rgba(0,0,0,0.05);
+    z-index: 1030;
 }
 
 .footer-name {
-    color: #3664e4; /* Bank Blue */
-    font-size: 1.5rem;
-    letter-spacing: 0.5px;
-}
-.footer-name2 {
-    color: #e05328; /* Bank Blue */
-    font-size: 1.1rem;
+    color: #3664e4; 
+    font-size: 1.2rem;
     letter-spacing: 0.5px;
 }
 
+.footer-name2 {
+    color: #e05328; 
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
 .footer-division {
-    color: #059669; /* Professional Emerald Green for 'Investment' */
+    color: #059669; 
     font-weight: 600;
 }
 
 .footer-bank {
     color: #3c08f5;
-    font-weight: 500;
-}
-
-.footer-hr {
-    width: 60px;
-    height: 3px;
-    background-color: #fbbf24; /* Gold accent line */
-    margin: 10px auto 15px auto;
-    border: none;
-    opacity: 1;
+    font-weight: 600;
 }
 
 .footer-address {
-    color: #94a3b8;
-    font-style: italic;
+    color: #64748b;
 }
 </style>
 
-<footer class="custom-footer">
+<footer class="custom-footer fixed-bottom">
     <div class="container text-center">
-        <!-- Developed by Name -->
-         <p class="mb-1 fw-bold footer-name2">Developed by</p>
-        <!-- Colorful Name -->
-         <p class="mb-1 fw-bold footer-name">Zahedul Alam Chowdhury</p>
-         <!-- Bank Name -->
-                <p class="mb-1 small footer-bank">First Security Islami Bank PLC</p>
-       <!-- Division with Green Accent -->
-        <p class="mb-1 small">
-            Officer | <span class="footer-division">Investment Division</span>
-        </p>
-        <!-- Address in Muted Gray -->
-        <p class="footer-address" style="font-size: 0.75rem;">
-            <i class="fas fa-map-marker-alt me-1"></i> Head Office, Gulshan, Dhaka
-        </p>
+         <span class="footer-name2 fw-bold">Developed by:</span>
+         <strong class="footer-name mx-1">Zahedul Alam Chowdhury</strong>
+         <span class="text-muted">|</span>
+         <span class="small footer-bank mx-1">First Security Islami Bank PLC</span>
+         <span class="text-muted">|</span>
+         <span class="small mx-1">Officer, <span class="footer-division">Investment Division</span></span>
+         <span class="footer-address small ms-2 d-none d-md-inline">
+            <i class="fas fa-map-marker-alt text-danger me-1"></i>HO, Gulshan, Dhaka
+         </span>
     </div>
 </footer>

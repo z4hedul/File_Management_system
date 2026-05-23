@@ -2,7 +2,7 @@
 session_start();
 // 1. DATABASE CONNECTION MUST BE FIRST
 include 'db.php'; 
-
+include 'header.php';
 // 2. LOGGED IN CHECK
 if (!isset($_SESSION['loggedin'])) {
     header("Location: login.php");
@@ -18,10 +18,10 @@ $isAdmin = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin');
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>File Management System</title>
     
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap5.min.css">
-    <link rel="stylesheet" href="style/style.css">
+    <link rel="stylesheet" href="assets/css/bootstrap.min.css">
+    <link rel="stylesheet" href="assets/css/all.min.css">
+    <link rel="stylesheet" href="assets/css/dataTables.bootstrap5.min.css">
+    <link rel="stylesheet" href="assets/css/style.css">
     <style>
         /* Modern Grid Card Styling */
         .dashboard-card {
@@ -38,54 +38,19 @@ $isAdmin = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin');
             width: 48px;
             height: 48px;
             display: inline-flex;
-            align-items-center justify-content-center;
+            align-items: center;
+            justify-content: center;
             border-radius: 10px;
         }
     </style>
 </head>
 <body>
 
-<nav class="navbar navbar-expand-lg navbar-dark shadow mb-4">
-    <div class="container main-container">
-        <a class="navbar-brand d-flex align-items-center fw-bold" href="index.php">
-            <img src="images/fsib_logo.jpg" alt="FSIB Logo" class="me-3 rounded bg-white p-1" style="height: 45px; width: auto;">
-            <span>FILE MANAGEMENT SYSTEM</span>
-        </a>
-        <div class="ms-auto d-flex align-items-center">
-            <?php if ($isAdmin): ?>
-                <a href="trash.php" class="nav-link px-3 position-relative text-white me-3" title="Recycle Bin">
-                    <i class="fas fa-trash-alt text-warning"></i>
-                    <?php
-                        $t_sql = "SELECT COUNT(*) as total FROM office_files WHERE is_deleted = 1";
-                        $t_res = $conn->query($t_sql);
-                        $t_count = ($t_res) ? $t_res->fetch_assoc()['total'] : 0;
-                        if($t_count > 0): 
-                    ?>
-                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.65rem; border: 1px solid white;">
-                            <?php echo $t_count; ?>
-                        </span>
-                    <?php endif; ?>
-                </a>
-            <?php endif; ?>
-
-            <span class="text-white me-3 small border-end pe-3">
-                <i class="fas fa-user-circle me-1"></i> 
-                <span class="opacity-75"><?php echo strtoupper(htmlspecialchars($_SESSION['role'])); ?>:</span> 
-                <strong class="text-warning"><?php echo strtoupper(htmlspecialchars($_SESSION['username'])); ?></strong>
-            </span>
-
-            <a href="logout.php" class="btn btn-sm btn-logout shadow-sm">
-                <i class="fas fa-sign-out-alt me-1"></i> LOGOUT
-            </a>
-        </div>
-    </div>
-</nav>
-
 <div class="container main-container pb-5">
 
-    <div class="row g-3 mb-4">
+    <div class="row g-3 mb-4 row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-5 justify-content-start">
         
-        <div class="col-6 col-sm-4 col-md-2.4 col-lg">
+        <div class="col">
             <div class="card h-100 shadow-sm dashboard-card">
                 <div class="card-body text-center p-3 d-flex flex-column justify-content-between">
                     <div>
@@ -100,7 +65,7 @@ $isAdmin = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin');
             </div>
         </div>
 
-        <div class="col-6 col-sm-4 col-md-2.4 col-lg">
+        <div class="col">
             <div class="card h-100 shadow-sm dashboard-card">
                 <div class="card-body text-center p-3 d-flex flex-column justify-content-between">
                     <div>
@@ -115,22 +80,7 @@ $isAdmin = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin');
             </div>
         </div>
 
-        <div class="col-6 col-sm-4 col-md-2.4 col-lg">
-            <div class="card h-100 shadow-sm dashboard-card">
-                <div class="card-body text-center p-3 d-flex flex-column justify-content-between">
-                    <div>
-                        <div class="icon-shape bg-primary-subtle text-primary mb-2">
-                            <i class="fas fa-clipboard-list fa-lg"></i>
-                        </div>
-                        <h6 class="card-title fw-bold mb-1 small text-dark">Assignments</h6>
-                        <p class="text-muted mb-3" style="font-size: 0.75rem;">Officer tracking panel.</p>
-                    </div>
-                    <a href="view_assignments.php" class="btn btn-sm btn-primary w-100 fw-bold rounded-3">Overview</a>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-6 col-sm-4 col-md-2.4 col-lg">
+        <div class="col">
             <div class="card h-100 shadow-sm dashboard-card">
                 <div class="card-body text-center p-3 d-flex flex-column justify-content-between">
                     <div>
@@ -146,7 +96,7 @@ $isAdmin = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin');
         </div>
 
         <?php if($isAdmin): ?>
-            <div class="col-6 col-sm-4 col-md-2.4 col-lg">
+            <div class="col">
                 <div class="card h-100 shadow-sm dashboard-card">
                     <div class="card-body text-center p-3 d-flex flex-column justify-content-between">
                         <div>
@@ -161,7 +111,7 @@ $isAdmin = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin');
                 </div>
             </div>
 
-            <div class="col-6 col-sm-4 col-md-2.4 col-lg">
+            <div class="col">
                 <div class="card h-100 shadow-sm dashboard-card">
                     <div class="card-body text-center p-3 d-flex flex-column justify-content-between">
                         <div>
@@ -178,6 +128,7 @@ $isAdmin = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin');
         <?php endif; ?>
 
     </div>
+    
     <div class="card table-card shadow-sm">
         <div class="card-header bg-white py-3 border-bottom">
             <div class="d-flex align-items-center">
@@ -211,9 +162,9 @@ $isAdmin = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin');
     </div>
 </div>
 
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js"></script>
+<script src="style/js/jquery-3.6.0.min.js"></script>
+<script src="style/js/jquery.dataTables.min.js"></script>
+<script src="style/js/dataTables.bootstrap5.min.js"></script>
 
 <script>
 $(document).ready(function() {

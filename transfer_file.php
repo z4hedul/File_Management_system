@@ -1,7 +1,7 @@
 <?php
 session_start();
 include 'db.php';
-
+include 'header.php';
 // 1. Validate ID
 $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 $stmt = $conn->prepare("SELECT * FROM office_files WHERE id = ?");
@@ -55,8 +55,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <html>
 <head>
     <title>Transfer File</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="assets/css/bootstrap.min.css">
+    <link rel="stylesheet" href="assets/css/all.min.css">
     <style>
         body { background: #f4f7f6; font-family: 'Segoe UI', sans-serif; }
         .transfer-card { border-radius: 15px; border: none; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
@@ -156,6 +156,6 @@ function toggleOtherInput() {
         </div>
     </div>
 </div>
-
+<?php include 'footer.php'; ?>
 </body>
 </html>

@@ -1,7 +1,7 @@
 <?php
 session_start();
 include 'db.php';
-
+include 'header.php';
 if (!isset($_SESSION['loggedin'])) {
     header('Location: login.php');
     exit;
@@ -95,8 +95,8 @@ $users_result = $conn->query("SELECT id, username, full_name, employee_id FROM u
 <head>
     <meta charset="UTF-8">
     <title>Assign Proposal Task</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="assets/css/bootstrap.min.css">
+    <link rel="stylesheet" href="assets/css/all.min.css">
 </head>
 <body class="bg-light p-5">
 
@@ -112,12 +112,12 @@ $users_result = $conn->query("SELECT id, username, full_name, employee_id FROM u
         
         <div class="card mb-4 border-secondary shadow-sm">
             <div class="card-header bg-secondary text-white fw-bold small">
-                <i class="fas fa-archive text-warning me-1"></i> FILE STORAGE METADATA (READ ONLY)
+                <i class="fas fa-archive text-warning me-1"></i> FILE STORAGE DATA (READ ONLY)
             </div>
             <div class="card-body bg-light">
                 <div class="row g-3">
                     <div class="col-md-8">
-                        <label class="form-label fw-bold text-muted small mb-1">Client Title Account</label>
+                        <label class="form-label fw-bold text-muted small mb-1">Client Name</label>
                         <input type="text" class="form-control bg-white text-dark fw-bold" value="<?php echo htmlspecialchars($preset_client_name); ?>" readonly disabled>
                     </div>
                     
@@ -126,11 +126,11 @@ $users_result = $conn->query("SELECT id, username, full_name, employee_id FROM u
                         <input type="text" class="form-control bg-white" value="<?php echo htmlspecialchars($preset_branch_name); ?>" readonly disabled>
                     </div>
                     <div class="col-md-4">
-                        <label class="form-label fw-bold text-muted small mb-1">Cabinet Unit Name</label>
+                        <label class="form-label fw-bold text-muted small mb-1">Cabinet No</label>
                         <input type="text" class="form-control bg-white" value="<?php echo htmlspecialchars($preset_cabinet_name); ?>" readonly disabled>
                     </div>
                     <div class="col-md-4">
-                        <label class="form-label fw-bold text-muted small mb-1">Shelf Unit Position</label>
+                        <label class="form-label fw-bold text-muted small mb-1">Shelf No</label>
                         <input type="text" class="form-control bg-white" value="<?php echo htmlspecialchars($preset_shelf_name); ?>" readonly disabled>
                     </div>
                 </div>
@@ -139,13 +139,13 @@ $users_result = $conn->query("SELECT id, username, full_name, employee_id FROM u
 
         <div class="card mb-4 border-primary shadow-sm">
             <div class="card-header bg-primary text-white fw-bold small">
-                <i class="fas fa-edit me-1"></i> PROPOSAL SPECS & DISPATCH CONTROLS
+                <i class="fas fa-edit me-1"></i> PROPOSAL SPECIFICATIONS & ASSIGNMENT DETAILS
             </div>
             <div class="card-body bg-white">
                 <div class="row g-3">
                     
                     <div class="col-md-12">
-                        <label class="form-label fw-bold text-primary small mb-1">Assign to Officer / Relationship Manager</label>
+                        <label class="form-label fw-bold text-primary small mb-1">Assign to Officer</label>
                         <select name="user_id" class="form-select border-primary form-select-lg" required>
                             <option value="">-- Click to Select Assignee --</option>
                             <?php while($user = $users_result->fetch_assoc()): ?>
@@ -169,15 +169,9 @@ $users_result = $conn->query("SELECT id, username, full_name, employee_id FROM u
                     </div>
 
                     <div class="col-md-12">
-                        <label class="form-label fw-bold text-danger small mb-1">Select Workflow Pipeline Stage Status</label>
+                        <label class="form-label fw-bold text-danger small mb-1">Select Workflow Status</label>
                         <select name="proposal_status" class="form-select border-danger bg-light-subtle fw-bold">
                             <option value="Proposal In Preparation">Proposal In Preparation</option>
-                            <option value="Committee Memo">Committee Memo</option>
-                            <option value="Committee Minutes">Committee Minutes</option>
-                            <option value="Office Note">Office Note</option>
-                            <option value="Board Memo">Board Memo</option>
-                            <option value="Board Minutes">Board Minutes</option>
-                            <option value="Approval/Sanction">Approval / Sanction</option>
                         </select>
                     </div>
                 </div>
@@ -188,10 +182,12 @@ $users_result = $conn->query("SELECT id, username, full_name, employee_id FROM u
             <button type="submit" class="btn btn-primary btn-lg px-5 shadow">
                 <i class="fas fa-save me-1"></i> Deploy & Save Assignment Logs
             </button>
-            <a href="proposal_assignments.php" class="btn btn-lg btn-light border">Cancel Execution</a>
+            <a href="index.php" class="btn btn-lg btn-light border">Cancel</a>
         </div>
     </form>
 </div>
-
+<?php
+include 'footer.php';
+?>
 </body>
 </html>
