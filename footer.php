@@ -36,7 +36,7 @@
     color: #64748b;
 }
 </style>
-
+<br><br>
 <footer class="custom-footer fixed-bottom">
     <div class="container text-center">
          <span class="footer-name2 fw-bold">Developed by:</span>

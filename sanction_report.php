@@ -21,6 +21,21 @@ if (!empty($to_date)) {
     $to_date = $d ? $d->format('Y-m-d') : '';
 }
 
+// =========================================================================
+// NEW CONFIGURATION: Fetch Distinct Facility Types for our Select Dropdown
+// =========================================================================
+$dropdown_facilities = [];
+$facilityListQuery = "SELECT DISTINCT TRIM(facility_type) AS f_type 
+                      FROM file_facilities 
+                      WHERE facility_type IS NOT NULL AND TRIM(facility_type) != '' 
+                      ORDER BY TRIM(facility_type) ASC";
+$facilityListRes = $conn->query($facilityListQuery);
+if ($facilityListRes) {
+    while ($f_row = $facilityListRes->fetch_assoc()) {
+        $dropdown_facilities[] = $f_row['f_type'];
+    }
+}
+
 $countQuery = "SELECT COUNT(*) AS total
                FROM file_facilities ff
                JOIN office_files o ON ff.file_record_id = o.id
@@ -61,7 +76,7 @@ $countStmt->execute();
 $countResult = $countStmt->get_result()->fetch_assoc();
 $total_count = intval($countResult['total'] ?? 0);
 
-// Build overall totals across all years for the active filters (this is what appears in the top summary cards)
+// Build overall totals across all years for the active filters
 $globalTotals = [];
 $global_total_all = 0;
 $global_type_totals = [];
@@ -90,17 +105,17 @@ $page = max(1, intval($_GET['page'] ?? 1));
 $offset = ($page - 1) * $per_page;
 $total_pages = max(1, (int)ceil($total_count / max(1, $per_page)));
 
-// Build a year list from the database (grouped) so tabs include every year present
+// Build a year list from the database
 $available_years = [];
- $yearsQuery = "SELECT COALESCE(YEAR(ff.sanction_date), 0) AS yr, COUNT(*) AS row_count, SUM(ff.amount) AS total
-                             FROM file_facilities ff
-                             JOIN office_files o ON ff.file_record_id = o.id
-                             WHERE o.is_deleted = 0
-                                 AND (? = '' OR ff.sanction_date >= ?)
-                                 AND (? = '' OR ff.sanction_date <= ?)
-                                 AND (? = '' OR ff.facility_type LIKE CONCAT('%', ?, '%'))
-                             GROUP BY yr
-                             ORDER BY yr DESC";
+$yearsQuery = "SELECT COALESCE(YEAR(ff.sanction_date), 0) AS yr, COUNT(*) AS row_count, SUM(ff.amount) AS total
+               FROM file_facilities ff
+               JOIN office_files o ON ff.file_record_id = o.id
+               WHERE o.is_deleted = 0
+                 AND (? = '' OR ff.sanction_date >= ?)
+                 AND (? = '' OR ff.sanction_date <= ?)
+                 AND (? = '' OR ff.facility_type LIKE CONCAT('%', ?, '%'))
+               GROUP BY yr
+               ORDER BY yr DESC";
 $yearsStmt = $conn->prepare($yearsQuery);
 $yearsStmt->bind_param('ssssss', $from_date, $from_date, $to_date, $to_date, $facility_filter, $facility_filter);
 $yearsStmt->execute();
@@ -113,19 +128,17 @@ while ($r = $yearsRes->fetch_assoc()) {
         'type_totals' => [],
     ];
 }
-// ensure order newest-first
 krsort($available_years);
 
 $query = "SELECT ff.*, o.branch_code, o.branch_name, o.division, o.client, o.file_no
-                    FROM file_facilities ff
-                    JOIN office_files o ON ff.file_record_id = o.id
-                    WHERE o.is_deleted = 0
-                        AND (? = '' OR ff.sanction_date >= ?)
-                        AND (? = '' OR ff.sanction_date <= ?)
-                        AND (? = '' OR ff.facility_type LIKE CONCAT('%', ?, '%'))";
+          FROM file_facilities ff
+          JOIN office_files o ON ff.file_record_id = o.id
+          WHERE o.is_deleted = 0
+            AND (? = '' OR ff.sanction_date >= ?)
+            AND (? = '' OR ff.sanction_date <= ?)
+            AND (? = '' OR ff.facility_type LIKE CONCAT('%', ?, '%'))";
 
 $query .= $yearCondition;
-
 $query .= "\n          ORDER BY ff.sanction_date DESC\n          LIMIT ?, ?";
 
 $stmt = $conn->prepare($query);
@@ -170,10 +183,9 @@ foreach ($rows as $row) {
     $year_groups[$year]['type_totals'][$type] = ($year_groups[$year]['type_totals'][$type] ?? 0) + $amount;
 }
 
-// Show newest years first in the UI
 krsort($year_groups);
 
-// Debug output: set ?debug=1 in the URL to dump year lists and samples
+// Debug output code block container
 if (isset($_GET['debug']) && $_GET['debug'] === '1') {
     echo '<div class="container mt-3"><div class="card p-3 mb-3"><pre style="white-space:pre-wrap; background:#f8f9fa; padding:12px; border:1px solid #e0e0e0;">';
     echo "AVAILABLE_YEARS:\n";
@@ -184,13 +196,8 @@ if (isset($_GET['debug']) && $_GET['debug'] === '1') {
     }
     echo "\nYEAR_GROUPS (current page):\n";
     print_r($year_groups);
-    if (isset($allRows)) {
-        echo "\nSAMPLE ALL ROWS (first 30):\n";
-        print_r(array_slice($allRows, 0, 30));
-    }
     echo '</pre></div></div>';
 }
-
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -201,6 +208,7 @@ if (isset($_GET['debug']) && $_GET['debug'] === '1') {
     <link rel="stylesheet" href="assets/css/bootstrap.min.css">
     <link rel="stylesheet" href="assets/css/all.min.css">
     <link rel="stylesheet" href="assets/css/style.css">
+    <link class="stylesheet" href="assets/css/dataTables.bootstrap5.min.css">
     <style>
         .report-header { background-color: #f8f9fa; border-left: 4px solid #0d6efd; }
         .table-fixed { table-layout: fixed; word-wrap: break-word; }
@@ -254,7 +262,14 @@ if (isset($_GET['debug']) && $_GET['debug'] === '1') {
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">Facility Type</label>
-                    <input type="text" name="facility_filter" class="form-control form-control-sm" placeholder="e.g. BG, LC, PIF, HYPO" value="<?php echo htmlspecialchars($facility_filter); ?>">
+                    <select name="facility_filter" class="form-select form-select-sm">
+                        <option value="">-- All Facility Types --</option>
+                        <?php foreach ($dropdown_facilities as $f_opt): ?>
+                            <option value="<?php echo htmlspecialchars($f_opt); ?>" <?php echo ($facility_filter === $f_opt) ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars(strtoupper($f_opt)); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
                 <div class="col-md-2 d-flex align-items-end">
                     <button type="submit" class="btn btn-primary btn-sm w-100"><i class="fas fa-filter me-1"></i> Apply Filter</button>
@@ -268,15 +283,9 @@ if (isset($_GET['debug']) && $_GET['debug'] === '1') {
                             <strong>Active filter:</strong>
                             <?php
                                 $labelParts = [];
-                                if ($from_date) {
-                                    $labelParts[] = 'From ' . date('d.m.Y', strtotime($from_date));
-                                }
-                                if ($to_date) {
-                                    $labelParts[] = 'To ' . date('d.m.Y', strtotime($to_date));
-                                }
-                                if ($facility_filter) {
-                                    $labelParts[] = 'Facility contains "' . htmlspecialchars($facility_filter) . '"';
-                                }
+                                if ($from_date) { $labelParts[] = 'From ' . date('d.m.Y', strtotime($from_date)); }
+                                if ($to_date) { $labelParts[] = 'To ' . date('d.m.Y', strtotime($to_date)); }
+                                if ($facility_filter) { $labelParts[] = 'Facility: "' . htmlspecialchars($facility_filter) . '"'; }
                                 echo implode(' | ', $labelParts);
                             ?>
                         </div>
@@ -354,41 +363,41 @@ if (isset($_GET['debug']) && $_GET['debug'] === '1') {
                                 </div>
 
                                 <div class="table-responsive">
-                                <table class="table table-bordered table-hover table-fixed align-middle mb-3">
-                                    <thead class="table-light small text-uppercase">
-                                        <tr>
-                                            <th>Client</th>
-                                            <th>Branch</th>
-                                            <th>Division</th>
-                                            <th>Facility Type</th>
-                                            <th class="text-end">Amount</th>
-                                            <th>Comm. Meet</th>
-                                            <th>Board Meet</th>
-                                            <th>Record</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php $sub = 0; foreach ($dateRows as $row): $sub += floatval($row['amount'] ?? 0); ?>
+                                    <table class="table table-bordered table-hover table-fixed align-middle mb-3">
+                                        <thead class="table-light small text-uppercase">
                                             <tr>
-                                                <td><?php echo htmlspecialchars($row['client'] ?? ''); ?></td>
-                                                <td><?php echo htmlspecialchars($row['branch_code'] . ' - ' . $row['branch_name']); ?></td>
-                                                <td><?php echo htmlspecialchars($row['division'] ?? ''); ?></td>
-                                                <td><?php echo htmlspecialchars($row['facility_type'] ?? ''); ?></td>
-                                                <td class="text-end"><?php echo number_format($row['amount'] ?? 0, 2); ?></td>
-                                                <td><?php echo htmlspecialchars($row['comm_meet_no'] ?? 'N/A'); ?><?php echo !empty($row['comm_meet_date']) ? '<br><small class="text-muted">' . date('d-m-Y', strtotime($row['comm_meet_date'])) . '</small>' : ''; ?></td>
-                                                <td><?php echo htmlspecialchars($row['board_meet_no'] ?? 'N/A'); ?><?php echo !empty($row['board_meet_date']) ? '<br><small class="text-muted">' . date('d-m-Y', strtotime($row['board_meet_date'])) . '</small>' : ''; ?></td>
-                                                <td><a href="view_details.php?id=<?php echo intval($row['file_record_id']); ?>" class="btn btn-sm btn-outline-primary">View</a></td>
+                                                <th>Client</th>
+                                                <th>Branch</th>
+                                                <th>Division</th>
+                                                <th>Facility Type</th>
+                                                <th class="text-end">Amount</th>
+                                                <th>Comm. Meet</th>
+                                                <th>Board Meet</th>
+                                                <th>Record</th>
                                             </tr>
-                                        <?php endforeach; ?>
-                                        <tr class="table-secondary">
-                                            <td class="text-end fw-bold" colspan="4">Sub-Total:</td>
-                                            <td class="text-end fw-bold text-primary"><?php echo number_format($sub, 2); ?></td>
-                                            <td colspan="3"></td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        <?php endforeach; ?>
+                                        </thead>
+                                        <tbody>
+                                            <?php $sub = 0; foreach ($dateRows as $row): $sub += floatval($row['amount'] ?? 0); ?>
+                                                <tr>
+                                                    <td><?php echo htmlspecialchars($row['client'] ?? ''); ?></td>
+                                                    <td><?php echo htmlspecialchars($row['branch_code'] . ' - ' . $row['branch_name']); ?></td>
+                                                    <td><?php echo htmlspecialchars($row['division'] ?? ''); ?></td>
+                                                    <td><?php echo htmlspecialchars($row['facility_type'] ?? ''); ?></td>
+                                                    <td class="text-end"><?php echo number_format($row['amount'] ?? 0, 2); ?></td>
+                                                    <td><?php echo htmlspecialchars($row['comm_meet_no'] ?? 'N/A'); ?><?php echo !empty($row['comm_meet_date']) ? '<br><small class="text-muted">' . date('d-m-Y', strtotime($row['comm_meet_date'])) . '</small>' : ''; ?></td>
+                                                    <td><?php echo htmlspecialchars($row['board_meet_no'] ?? 'N/A'); ?><?php echo !empty($row['board_meet_date']) ? '<br><small class="text-muted">' . date('d-m-Y', strtotime($row['board_meet_date'])) . '</small>' : ''; ?></td>
+                                                    <td><a href="view_details.php?id=<?php echo intval($row['file_record_id']); ?>" class="btn btn-sm btn-outline-primary">View</a></td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                            <tr class="table-secondary">
+                                                <td class="text-end fw-bold" colspan="4">Sub-Total:</td>
+                                                <td class="text-end fw-bold text-primary"><?php echo number_format($sub, 2); ?></td>
+                                                <td colspan="3"></td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            <?php endforeach; ?>
                         <?php else: ?>
                             <div class="alert alert-light border mt-3">No records for this year appear on the current page. <a href="#" class="ms-1 view-year-link" data-year="<?php echo htmlspecialchars($y); ?>">Load this year (page 1)</a></div>
                         <?php endif; ?>
@@ -404,78 +413,67 @@ if (isset($_GET['debug']) && $_GET['debug'] === '1') {
                             <?php endforeach; ?>
                         </div>
                     </div>
-                    <script type="application/json" class="year-meta" data-year="<?php echo htmlspecialchars($y); ?>">{
-                        "current_rows": <?php echo count($g['rows']); ?>
-                    }</script>
+                    <script type="application/json" class="year-meta" data-year="<?php echo htmlspecialchars($y); ?>">{ "current_rows": <?php echo count($g['rows']); ?> }</script>
                 <?php $pIdx++; endforeach; ?>
             <?php else: ?>
                 <div class="alert alert-light border text-center mt-3">No sanction records found for the selected filter.</div>
             <?php endif; ?>
-        </div>
-    </div>
-</div>
+        </div> </div> </div> <script>
+    function activateYear(year) {
+        var target = document.querySelector('.year-tabs [data-year="' + year + '"]');
+        var panel = document.querySelector('.year-panel[data-year-panel="' + year + '"]');
+        if (!target || !panel) {
+            var firstTab = document.querySelector('.year-tabs [data-year]');
+            if (!firstTab) return;
+            year = firstTab.dataset.year;
+            target = firstTab;
+            panel = document.querySelector('.year-panel[data-year-panel="' + year + '"]');
+        }
+        document.querySelectorAll('.year-tabs [data-year]').forEach(function(btn) {
+            btn.classList.toggle('active', btn.dataset.year === year);
+        });
+        document.querySelectorAll('.year-panel').forEach(function(panelItem) {
+            panelItem.classList.toggle('active', panelItem.dataset.yearPanel === year);
+        });
+        if (history.replaceState) {
+            history.replaceState(null, '', '#' + encodeURIComponent(year));
+        } else {
+            window.location.hash = encodeURIComponent(year);
+        }
+    }
 
-        </div>
-        </div>
-        </div>
+    document.querySelectorAll('.year-tabs [data-year]').forEach(function(button) {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var year = this.dataset.year;
+            var params = new URLSearchParams(window.location.search);
+            params.set('year', year);
+            params.set('page', '1');
+            var url = window.location.pathname + '?' + params.toString();
+            window.location.assign(url);
+        });
+    });
 
-            <script>
-                function activateYear(year) {
-                    var target = document.querySelector('.year-tabs [data-year="' + year + '"]');
-                    var panel = document.querySelector('.year-panel[data-year-panel="' + year + '"]');
-                    if (!target || !panel) {
-                        var firstTab = document.querySelector('.year-tabs [data-year]');
-                        if (!firstTab) return;
-                        year = firstTab.dataset.year;
-                        target = firstTab;
-                        panel = document.querySelector('.year-panel[data-year-panel="' + year + '"]');
-                    }
-                    document.querySelectorAll('.year-tabs [data-year]').forEach(function(btn) {
-                        btn.classList.toggle('active', btn.dataset.year === year);
-                    });
-                    document.querySelectorAll('.year-panel').forEach(function(panelItem) {
-                        panelItem.classList.toggle('active', panelItem.dataset.yearPanel === year);
-                    });
-                    if (history.replaceState) {
-                        history.replaceState(null, '', '#' + encodeURIComponent(year));
-                    } else {
-                        window.location.hash = encodeURIComponent(year);
-                    }
-                }
+    document.querySelectorAll('.view-year-link').forEach(function(link) {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            var year = this.dataset.year;
+            var params = new URLSearchParams(window.location.search);
+            params.set('year', year);
+            params.set('page', '1');
+            window.location.search = params.toString();
+        });
+    });
 
-                document.querySelectorAll('.year-tabs [data-year]').forEach(function(button) {
-                    button.addEventListener('click', function(e) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        var year = this.dataset.year;
-                        var params = new URLSearchParams(window.location.search);
-                        params.set('year', year);
-                        params.set('page', '1');
-                        var url = window.location.pathname + '?' + params.toString();
-                        // always navigate so the server returns the year's paginated rows on first click
-                        window.location.assign(url);
-                    });
-                });
+    window.addEventListener('DOMContentLoaded', function() {
+        var hashYear = window.location.hash ? decodeURIComponent(window.location.hash.substring(1)) : '';
+        if (hashYear) {
+            activateYear(hashYear);
+        }
+    });
+</script>
 
-                // handle the 'Load this year' links inside panels
-                document.querySelectorAll('.view-year-link').forEach(function(link) {
-                    link.addEventListener('click', function(e) {
-                        e.preventDefault();
-                        var year = this.dataset.year;
-                        var params = new URLSearchParams(window.location.search);
-                        params.set('year', year);
-                        params.set('page', '1');
-                        window.location.search = params.toString();
-                    });
-                });
-
-                window.addEventListener('DOMContentLoaded', function() {
-                    var hashYear = window.location.hash ? decodeURIComponent(window.location.hash.substring(1)) : '';
-                    if (hashYear) {
-                        activateYear(hashYear);
-                    }
-                });
-            </script>
 <?php include 'footer.php'; ?>
-        </body>
-        </html>
+</body>
+</html>
