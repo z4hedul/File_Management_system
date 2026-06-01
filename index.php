@@ -1,11 +1,32 @@
 <?php
 session_start();
 include 'db.php';
+include 'header.php';
+$isAdmin = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin');
 
 // Verify authentication state boundary
 if (!isset($_SESSION['loggedin'])) {
     header('Location: login.php');
     exit;
+}
+
+/**
+ * FETCH FULL NAME DYNAMICALLY
+ * This ensures that even if $_SESSION['full_name'] is not explicitly set 
+ * during login, the system will dynamically pull it from the database table.
+ */
+$display_name = $_SESSION['username'] ?? 'User';
+if (isset($_SESSION['username'])) {
+    $user_stmt = $conn->prepare("SELECT full_name FROM users WHERE username = ?");
+    $user_stmt->bind_param("s", $_SESSION['username']);
+    $user_stmt->execute();
+    $user_res = $user_stmt->get_result()->fetch_assoc();
+    
+    if (!empty($user_res['full_name'])) {
+        $display_name = $user_res['full_name'];
+        $_SESSION['full_name'] = $user_res['full_name']; // Save to session for optimization
+    }
+    $user_stmt->close();
 }
 
 // Get the active filtered status from the URL click action
@@ -37,6 +58,7 @@ foreach ($stages as $key => $status_value) {
     $stmt->bind_param('s', $status_value);
     $stmt->execute();
     $counts[$key] = intval($stmt->get_result()->fetch_assoc()['total']);
+    $stmt->close(); // Added clean close execution statement fix
 }
 
 // Under Process tracking aggregate calculation
@@ -45,7 +67,6 @@ $total_processing = $counts['in_prep'] + $counts['office_note'] + $counts['commi
 // 3. Relational Query pulling Officer Full Name from users table
 $matching_proposals = [];
 if (!empty($active_filter)) {
-    // Note: Adjust 'u.full_name' if your users table uses 'u.name' or 'u.username'
     $list_sql = "SELECT 
                     pa.assigned_date AS assigned_time, 
                     u.full_name AS officer_name, 
@@ -53,7 +74,8 @@ if (!empty($active_filter)) {
                     o.client AS client_name, 
                     o.branch_name AS branch, 
                     o.file_no AS file_number,
-                    o.id AS file_rec_id
+                    o.id AS file_rec_id, 
+                    pa.proposal_type AS proposal_type
                  FROM proposal_assignments pa
                  JOIN office_files o ON pa.file_id = o.id
                  LEFT JOIN users u ON pa.user_id = u.id
@@ -64,6 +86,7 @@ if (!empty($active_filter)) {
     $list_stmt->bind_param('s', $active_filter);
     $list_stmt->execute();
     $matching_proposals = $list_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $list_stmt->close(); // Added clean close statement fix to prevent Undefined Variable notice warnings
 }
 ?>
 <!DOCTYPE html>
@@ -85,45 +108,69 @@ if (!empty($active_filter)) {
         .text-purple { color: #6f42c1 !important; }
         .client-link { text-decoration: none; color: #212529; transition: color 0.15s ease-in-out; }
         .client-link:hover { color: #0d6efd; text-decoration: underline; }
+
+    .toolbar-action-btn {
+        transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease !important;
+        border-radius: 8px !important;
+        font-size: 0.85rem !important;
+    }
+    .toolbar-action-btn:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12) !important;
+    }
+    .toolbar-action-btn i {
+        font-size: 0.95rem;
+    }
     </style>
 </head>
 <body class="bg-light">
-
-<nav class="navbar navbar-expand-lg navbar-dark shadow mb-4">
-    <div class="container main-container">
-        <a class="navbar-brand d-flex align-items-center fw-bold" href="index.php">
-            <img src="images/fsib_logo.jpg" alt="FSIB Logo" class="me-3 rounded bg-white p-1" style="height: 45px; width: auto;">
-            <span>FILE MANAGEMENT SYSTEM</span>
-        </a>
-        <div class="ms-auto d-flex align-items-center">
-            <span class="text-white me-3 small border-end pe-3">
-                <i class="fas fa-user-circle me-1"></i>
-                <span class="opacity-75"><?php echo strtoupper(htmlspecialchars($_SESSION['role'] ?? '')); ?>:</span>
-                <strong class="text-warning"><?php echo strtoupper(htmlspecialchars($_SESSION['username'] ?? '')); ?></strong>
-            </span>
-            <a href="logout.php" class="btn btn-sm btn-logout shadow-sm">
-                <i class="fas fa-sign-out-alt me-1"></i> LOGOUT
-            </a>
-        </div>
-    </div>
-</nav>
-
 <div class="container main-container pb-5">
-    
-    <!-- Welcome Header Strip -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
-            <h3 class="fw-bold text-dark mb-0">System Operation Dashboard</h3>
-            <p class="text-muted small mb-0">Welcome back, <span class="text-primary fw-semibold"><?php echo htmlspecialchars(strtoupper($_SESSION['username'] ?? '')); ?></span></p>
+            <h3 class="fw-bold text-dark mb-0">File Management Dashboard</h3>
+            <p class="text-muted small mb-0">Welcome back, <span class="text-primary fw-semibold"><?php echo htmlspecialchars(ucwords(strtolower($display_name))); ?></span></p>
         </div>
-        <div class="d-flex gap-2">
-            <a href="add_record.php" class="btn btn-success shadow-sm"><i class="fas fa-plus me-1"></i> New File Record</a>
-            <a href="sanction_report.php" class="btn btn-primary shadow-sm"><i class="fas fa-file-alt me-2"></i> View Full Report</a>
-        </div>
+        <div class="card shadow-sm border-0 mb-4 bg-white rounded-3">
+    <div class="card-body p-3 d-flex flex-wrap gap-2 justify-content-start align-items-center">
+        
+        <a href="search.php" class="btn btn-outline-primary d-inline-flex align-items-center gap-2 fw-semibold px-3 py-2 border-2 toolbar-action-btn">
+            <i class="fas fa-search"></i>
+            <span>Search File</span>
+        </a>
+
+        <a href="add_record.php" class="btn btn-success d-inline-flex align-items-center gap-2 fw-semibold px-3 py-2 shadow-sm toolbar-action-btn">
+            <i class="fas fa-folder-plus"></i>
+            <span>New File Record</span>
+        </a>
+        <!-- <a href="import_csv.php" class="btn btn-success d-inline-flex align-items-center gap-2 fw-semibold px-3 py-2 shadow-sm toolbar-action-btn">
+            <i class="fas fa-folder-plus"></i>
+            <span>Import CSV</span>
+        </a> -->
+        <a href="proposal_assignments.php" class="btn btn-warning text-dark d-inline-flex align-items-center gap-2 fw-semibold px-3 py-2 shadow-sm toolbar-action-btn">
+            <i class="fas fa-file-signature"></i>
+            <span>Proposal Assign</span>
+        </a>
+        <a href="sanction_report.php" class="btn btn-info text-white d-inline-flex align-items-center gap-2 fw-semibold px-3 py-2 shadow-sm toolbar-action-btn">
+            <i class="fas fa-chart-line"></i>
+            <span>Sanction Report</span>
+        </a>
+
+        <?php if ($isAdmin): ?>
+            <div class="vr mx-1 my-auto bg-secondary opacity-25 d-none d-lg-block" style="height: 28px; width: 2px;"></div>
+            <a href="add_user.php" class="btn btn-outline-danger d-inline-flex align-items-center gap-2 fw-semibold px-3 py-2 border-2 toolbar-action-btn">
+                <i class="fas fa-user-plus"></i>
+                <span>Add User</span>
+            </a>
+            <a href="manage_users.php" class="btn btn-dark d-inline-flex align-items-center gap-2 fw-semibold px-3 py-2 shadow-sm toolbar-action-btn">
+                <i class="fas fa-users-cog"></i>
+                <span>Manage Users</span>
+            </a>
+        <?php endif; ?>
+    </div>
+</div>
     </div>
 
-    <!-- Tier 1: Core Global Pillars Summary Cards -->
-    <div class="row g-3 mb-5">
+    <div class="row g-3 mb-3">
         <div class="col-md-3">
             <div class="card metric-card shadow-sm bg-white p-3 border-start border-primary border-4 h-100">
                 <div class="d-flex align-items-center">
@@ -170,144 +217,149 @@ if (!empty($active_filter)) {
         </div>
     </div>
 
-    <!-- Tier 2: Granular Lifecycle Tracking Pipeline Components -->
-    <h5 class="fw-semibold text-secondary mb-3"><i class="fas fa-layer-group me-2"></i> Detailed Tracking Components <span class="small text-muted fw-normal">(Click view to populate list below)</span></h5>
-    
-    <!-- First Row: Initial Stages -->
-    <div class="row row-cols-1 row-cols-md-4 g-3 mb-3">
-        <div class="col">
-            <div class="card metric-card shadow-sm h-100 border-top border-secondary border-3 <?php echo ($active_filter === 'Pending') ? 'active-view' : ''; ?>">
-                <div class="card-body p-3 d-flex flex-column justify-content-between">
-                    <div>
-                        <div class="text-muted font-monospace small text-uppercase">Pending/Hold</div>
-                        <h4 class="fw-bold mt-2 mb-0"><?php echo $counts['pending']; ?></h4>
-                    </div>
-                    <div class="d-flex justify-content-between align-items-center mt-3">
-                        <i class="fas fa-pause-circle text-secondary fs-4"></i>
-                        <a href="index.php?status_view=Pending" class="btn btn-sm btn-outline-secondary px-2 py-0">View <i class="fas fa-eye ms-1"></i></a>
+    <h5 class="fw-semibold text-secondary mb-3">
+        <i class="fas fa-layer-group me-2"></i> Pipeline Stage Tracker 
+        <span class="small text-muted fw-normal">(Select a stage circle to filter the records table)</span>
+    </h5>
+
+<div class="card shadow-sm border-0 mb-5 bg-white rounded-3">
+    <div class="card-body p-4">
+        <div class="d-flex flex-wrap gap-4 justify-content-between align-items-center text-center">
+            
+            <a href="index.php?status_view=Pending" class="pipeline-node-link <?php echo ($active_filter === 'Pending') ? 'node-active' : ''; ?>">
+                <div class="progress-circle-wrapper border-secondary">
+                    <div class="progress-circle-inner bg-secondary-subtle text-secondary">
+                        <span class="fw-bold fs-3"><?php echo $counts['pending']; ?></span>
                     </div>
                 </div>
-            </div>
-        </div>
-        <div class="col">
-            <div class="card metric-card shadow-sm h-100 border-top border-primary border-3 <?php echo ($active_filter === 'Proposal In Preparation') ? 'active-view' : ''; ?>">
-                <div class="card-body p-3 d-flex flex-column justify-content-between">
-                    <div>
-                        <div class="text-muted font-monospace small text-uppercase">In Preparation</div>
-                        <h4 class="fw-bold mt-2 mb-0"><?php echo $counts['in_prep']; ?></h4>
-                    </div>
-                    <div class="d-flex justify-content-between align-items-center mt-3">
-                        <i class="fas fa-edit text-primary fs-4"></i>
-                        <a href="index.php?status_view=Proposal+In+Preparation" class="btn btn-sm btn-outline-primary px-2 py-0">View <i class="fas fa-eye ms-1"></i></a>
+                <div class="node-label text-secondary font-monospace mt-2">Pending</div>
+            </a>
+
+            <a href="index.php?status_view=Proposal+In+Preparation" class="pipeline-node-link <?php echo ($active_filter === 'Proposal In Preparation') ? 'node-active' : ''; ?>">
+                <div class="progress-circle-wrapper border-primary">
+                    <div class="progress-circle-inner bg-primary-subtle text-primary">
+                        <span class="fw-bold fs-3"><?php echo $counts['in_prep']; ?></span>
                     </div>
                 </div>
-            </div>
-        </div>
-        <div class="col">
-            <div class="card metric-card shadow-sm h-100 border-top border-info border-3 <?php echo ($active_filter === 'Office Note') ? 'active-view' : ''; ?>">
-                <div class="card-body p-3 d-flex flex-column justify-content-between">
-                    <div>
-                        <div class="text-muted font-monospace small text-uppercase">Office Note</div>
-                        <h4 class="fw-bold mt-2 mb-0"><?php echo $counts['office_note']; ?></h4>
-                    </div>
-                    <div class="d-flex justify-content-between align-items-center mt-3">
-                        <i class="far fa-sticky-note text-info fs-4"></i>
-                        <a href="index.php?status_view=Office+Note" class="btn btn-sm btn-outline-info px-2 py-0">View <i class="fas fa-eye ms-1"></i></a>
+                <div class="node-label text-primary font-monospace mt-2">In Prep</div>
+            </a>
+
+            <a href="index.php?status_view=Office+Note" class="pipeline-node-link <?php echo ($active_filter === 'Office Note') ? 'node-active' : ''; ?>">
+                <div class="progress-circle-wrapper border-info">
+                    <div class="progress-circle-inner bg-info-subtle text-info">
+                        <span class="fw-bold fs-3"><?php echo $counts['office_note']; ?></span>
                     </div>
                 </div>
-            </div>
-        </div>
-        <div class="col">
-            <div class="card metric-card shadow-sm h-100 border-top border-purple border-3 <?php echo ($active_filter === 'Committee Memo') ? 'active-view' : ''; ?>">
-                <div class="card-body p-3 d-flex flex-column justify-content-between">
-                    <div>
-                        <div class="text-muted font-monospace small text-uppercase">Comm. Memo</div>
-                        <h4 class="fw-bold mt-2 mb-0"><?php echo $counts['committee_memo']; ?></h4>
-                    </div>
-                    <div class="d-flex justify-content-between align-items-center mt-3">
-                        <i class="fas fa-users-cog text-purple fs-4"></i>
-                        <a href="index.php?status_view=Committee+Memo" class="btn btn-sm btn-outline-purple px-2 py-0">View <i class="fas fa-eye ms-1"></i></a>
+                <div class="node-label text-info font-monospace mt-2">Office Note</div>
+            </a>
+
+            <a href="index.php?status_view=Committee+Memo" class="pipeline-node-link <?php echo ($active_filter === 'Committee Memo') ? 'node-active' : ''; ?>">
+                <div class="progress-circle-wrapper" style="border-color: #6f42c1 !important;">
+                    <div class="progress-circle-inner text-purple" style="background-color: #e0cffc !important; color: #6f42c1 !important;">
+                        <span class="fw-bold fs-3"><?php echo $counts['committee_memo']; ?></span>
                     </div>
                 </div>
-            </div>
+                <div class="node-label font-monospace mt-2" style="color: #6f42c1;">Comm. Memo</div>
+            </a>
+
+            <a href="index.php?status_view=Committee+Minutes" class="pipeline-node-link <?php echo ($active_filter === 'Committee Minutes') ? 'node-active' : ''; ?>">
+                <div class="progress-circle-wrapper border-warning">
+                    <div class="progress-circle-inner bg-warning-subtle text-warning">
+                        <span class="fw-bold fs-3"><?php echo $counts['committee_minutes']; ?></span>
+                    </div>
+                </div>
+                <div class="node-label text-warning font-monospace mt-2">Comm. Min</div>
+            </a>
+
+            <a href="index.php?status_view=Board+Memo" class="pipeline-node-link <?php echo ($active_filter === 'Board Memo') ? 'node-active' : ''; ?>">
+                <div class="progress-circle-wrapper border-success">
+                    <div class="progress-circle-inner bg-success-subtle text-success">
+                        <span class="fw-bold fs-3"><?php echo $counts['board_memo']; ?></span>
+                    </div>
+                </div>
+                <div class="node-label text-success font-monospace mt-2">Board Memo</div>
+            </a>
+
+            <a href="index.php?status_view=Board+Minutes" class="pipeline-node-link <?php echo ($active_filter === 'Board Minutes') ? 'node-active' : ''; ?>">
+                <div class="progress-circle-wrapper border-dark">
+                    <div class="progress-circle-inner bg-dark-subtle text-dark">
+                        <span class="fw-bold fs-3"><?php echo $counts['board_minutes']; ?></span>
+                    </div>
+                </div>
+                <div class="node-label text-dark font-monospace mt-2">Board Min</div>
+            </a>
+            <a href="index.php?status_view=Declined" class="pipeline-node-link <?php echo ($active_filter === 'Declined') ? 'node-active' : ''; ?>">
+                <div class="progress-circle-wrapper border-danger">
+                    <div class="progress-circle-inner text-white bg-danger">
+                        <span class="fw-bold fs-3"><?php echo $counts['declined']; ?></span>
+                    </div>
+                </div>
+                <div class="node-label text-danger font-monospace fw-bold mt-2">Declined</div>
+            </a>
+            <a href="index.php?status_view=Approval%2FSanction" class="pipeline-node-link <?php echo ($active_filter === 'Approval/Sanction') ? 'node-active' : ''; ?>">
+                <div class="progress-circle-wrapper border-success-double">
+                    <div class="progress-circle-inner text-white bg-success">
+                        <span class="fw-bold fs-3"><?php echo $counts['approved']; ?></span>
+                    </div>
+                </div>
+                <div class="node-label text-success font-monospace fw-bold mt-2">Approved</div>
+            </a>
         </div>
     </div>
+</div>
 
-    <!-- Second Row: Advanced Stages -->
-    <div class="row row-cols-1 row-cols-md-5 g-3 mb-5">
-        <div class="col">
-            <div class="card metric-card shadow-sm h-100 border-top border-warning border-3 <?php echo ($active_filter === 'Committee Minutes') ? 'active-view' : ''; ?>">
-                <div class="card-body p-3 d-flex flex-column justify-content-between">
-                    <div>
-                        <div class="text-muted font-monospace small text-uppercase">Comm. Minutes</div>
-                        <h4 class="fw-bold mt-2 mb-0"><?php echo $counts['committee_minutes']; ?></h4>
-                    </div>
-                    <div class="d-flex justify-content-between align-items-center mt-3">
-                        <i class="far fa-clock text-warning fs-4"></i>
-                        <a href="index.php?status_view=Committee+Minutes" class="btn btn-sm btn-outline-warning px-2 py-0">View <i class="fas fa-eye ms-1"></i></a>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col">
-            <div class="card metric-card shadow-sm h-100 border-top border-success border-3 <?php echo ($active_filter === 'Board Memo') ? 'active-view' : ''; ?>">
-                <div class="card-body p-3 d-flex flex-column justify-content-between">
-                    <div>
-                        <div class="text-muted font-monospace small text-uppercase">Board Memo</div>
-                        <h4 class="fw-bold mt-2 mb-0"><?php echo $counts['board_memo']; ?></h4>
-                    </div>
-                    <div class="d-flex justify-content-between align-items-center mt-3">
-                        <i class="fas fa-id-card-alt text-success fs-4"></i>
-                        <a href="index.php?status_view=Board+Memo" class="btn btn-sm btn-outline-success px-2 py-0">View <i class="fas fa-eye ms-1"></i></a>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col">
-            <div class="card metric-card shadow-sm h-100 border-top border-dark border-3 <?php echo ($active_filter === 'Board Minutes') ? 'active-view' : ''; ?>">
-                <div class="card-body p-3 d-flex flex-column justify-content-between">
-                    <div>
-                        <div class="text-muted font-monospace small text-uppercase">Board Minutes</div>
-                        <h4 class="fw-bold mt-2 mb-0"><?php echo $counts['board_minutes']; ?></h4>
-                    </div>
-                    <div class="d-flex justify-content-between align-items-center mt-3">
-                        <i class="fas fa-file-signature text-dark fs-4"></i>
-                        <a href="index.php?status_view=Board+Minutes" class="btn btn-sm btn-outline-dark px-2 py-0">View <i class="fas fa-eye ms-1"></i></a>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col">
-            <div class="card metric-card shadow-sm h-100 border-top border-success border-3 <?php echo ($active_filter === 'Approval/Sanction') ? 'active-view' : ''; ?>">
-                <div class="card-body p-3 d-flex flex-column justify-content-between">
-                    <div>
-                        <div class="text-muted font-monospace small text-uppercase">Approved</div>
-                        <h4 class="fw-bold mt-2 mb-0"><?php echo $counts['approved']; ?></h4>
-                    </div>
-                    <div class="d-flex justify-content-between align-items-center mt-3">
-                        <i class="fas fa-check-double text-success fs-4"></i>
-                        <a href="index.php?status_view=Approval%2FSanction" class="btn btn-sm btn-outline-success px-2 py-0">View <i class="fas fa-eye ms-1"></i></a>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col">
-            <div class="card metric-card shadow-sm h-100 border-top border-danger border-3 <?php echo ($active_filter === 'Declined') ? 'active-view' : ''; ?>">
-                <div class="card-body p-3 d-flex flex-column justify-content-between">
-                    <div>
-                        <div class="text-muted font-monospace small text-uppercase">Declined</div>
-                        <h4 class="fw-bold mt-2 mb-0"><?php echo $counts['declined']; ?></h4>
-                    </div>
-                    <div class="d-flex justify-content-between align-items-center mt-3">
-                        <i class="fas fa-ban text-danger fs-4"></i>
-                        <a href="index.php?status_view=Declined" class="btn btn-sm btn-outline-danger px-2 py-0">View <i class="fas fa-eye ms-1"></i></a>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+<style>
+    .pipeline-node-link {
+        text-decoration: none !important;
+        display: flex;
+        flex-column: column;
+        flex-direction: column;
+        align-items: center;
+        transition: transform 0.2s ease;
+        flex: 1 1 90px;
+        min-width: 85px;
+    }
+    .pipeline-node-link:hover {
+        transform: scale(1.08);
+    }
+    .progress-circle-wrapper {
+        width: 72px;
+        height: 72px;
+        border-radius: 50%;
+        border: 4px solid #dee2e6;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 3px;
+        background: #fff;
+        transition: box-shadow 0.2s ease;
+    }
+    .border-success-double {
+        border: 4px double #198754 !important;
+    }
+    .progress-circle-inner {
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .node-label {
+        font-size: 0.72rem;
+        text-uppercase: uppercase;
+        letter-spacing: -0.3px;
+        font-weight: 500;
+    }
+    .node-active .progress-circle-wrapper {
+        box-shadow: 0 0 0 3px #fff, 0 0 0 6px #0d6efd !important;
+    }
+    .node-active .node-label {
+        font-weight: 700 !important;
+        text-decoration: underline;
+    }
+</style>
 
-    <!-- DYNAMIC DATA DISPLAY QUEUE TABLE -->
     <?php if (!empty($active_filter)): ?>
         <div class="card shadow-sm border-0 mb-4">
             <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center border-bottom">
@@ -336,7 +388,6 @@ if (!empty($active_filter)) {
                                         <?php echo (!empty($row['assigned_time'])) ? date('d-M-Y h:i A', strtotime($row['assigned_time'])) : 'Timestamp Not Set'; ?>
                                     </td>
                                     <td>
-                                        <!-- Client Name is now the View Link to Open Details -->
                                         <div class="fw-bold mb-0" style="font-size:0.95rem;">
                                             <a href="more_details.php?id=<?php echo intval($row['file_rec_id']); ?>" class="client-link" title="Click to view full file records">
                                                 <i class="fas fa-folder-open text-primary opacity-75 me-1" style="font-size: 0.85rem;"></i>
@@ -345,7 +396,7 @@ if (!empty($active_filter)) {
                                         </div>
                                         <div class="text-muted d-flex gap-3 mt-1" style="font-size:0.8rem;">
                                             <span><i class="fas fa-code-branch me-1"></i>Branch: <strong><?php echo htmlspecialchars($row['branch'] ?? 'N/A'); ?></strong></span>
-                                            <span class="border-start ps-3"><i class="far fa-file-alt me-1"></i>File No: <strong><?php echo htmlspecialchars($row['file_number'] ?? 'N/A'); ?></strong></span>
+                                            <span><i class="fas fa-layer-group me-1"></i><strong><?= htmlspecialchars(!empty($row['proposal_type']) ? $row['proposal_type'] : 'N/A') ?></strong></span>
                                         </div>
                                     </td>
                                     <td>
@@ -378,7 +429,6 @@ if (!empty($active_filter)) {
             </div>
         </div>
     <?php endif; ?>
-
 </div>
 
 <?php include 'footer.php'; ?>

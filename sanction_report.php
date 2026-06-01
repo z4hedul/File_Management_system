@@ -1,7 +1,7 @@
 <?php
 session_start();
 include 'db.php';
-
+include 'header.php';
 if (!isset($_SESSION['loggedin'])) {
     header('Location: login.php');
     exit;
@@ -219,25 +219,6 @@ if (isset($_GET['debug']) && $_GET['debug'] === '1') {
     </style>
 </head>
 <body>
-<nav class="navbar navbar-expand-lg navbar-dark shadow mb-4">
-    <div class="container main-container">
-        <a class="navbar-brand d-flex align-items-center fw-bold" href="index.php">
-            <img src="images/fsib_logo.jpg" alt="FSIB Logo" class="me-3 rounded bg-white p-1" style="height: 45px; width: auto;">
-            <span>FILE MANAGEMENT SYSTEM</span>
-        </a>
-        <div class="ms-auto d-flex align-items-center">
-            <span class="text-white me-3 small border-end pe-3">
-                <i class="fas fa-user-circle me-1"></i>
-                <span class="opacity-75"><?php echo strtoupper(htmlspecialchars($_SESSION['role'] ?? '')); ?>:</span>
-                <strong class="text-warning"><?php echo strtoupper(htmlspecialchars($_SESSION['username'] ?? '')); ?></strong>
-            </span>
-            <a href="logout.php" class="btn btn-sm btn-logout shadow-sm">
-                <i class="fas fa-sign-out-alt me-1"></i> LOGOUT
-            </a>
-        </div>
-    </div>
-</nav>
-
 <div class="container main-container pb-5">
     <div class="card shadow-sm">
         <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">

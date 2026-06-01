@@ -52,8 +52,7 @@ while($row = $result->fetch_assoc()) {
         
         echo "<a href='more_details.php?id=$file_id' class='btn btn-sm btn-success' title='More Details'><i class='fas'></i>info</a>"; 
         
-        echo '<a href="assign_proposal.php?id=' . intval($row['id']) . '" class="btn btn-sm btn-warning">
-    <i class="fas fa-user-plus"></i> Assign
+        echo '<a href="assign_proposal.php?id=' . intval($row['id']) . '" class="btn btn-sm btn-warning"><i class="fas fa-user-plus"></i> Assign
 </a>';
 
 

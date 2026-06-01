@@ -15,7 +15,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $password = $_POST['password'];
 
     // Search for the user
-    $sql = "SELECT id, username, password, role FROM users WHERE username = ?";
+$sql = "SELECT id, username, password, role FROM users WHERE username = ?";
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("s", $username);
 $stmt->execute();
@@ -29,6 +29,7 @@ if ($result->num_rows === 1) {
     if (password_verify($password, $user['password'])) {
         $_SESSION['loggedin'] = true;
         $_SESSION['username'] = $user['username'];
+        $_SESSION['full_name'] = $user_data['full_name'];
         $_SESSION['role']     = $user['role'];
         
         // This is the line we added for manage_users.php

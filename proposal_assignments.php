@@ -332,9 +332,9 @@ $total_records = $ledger_data->num_rows;
         <div class="card-body">
             <form method="GET" class="row g-3 align-items-end">
                 <div class="col-md-9">
-                    <label class="form-label small fw-bold text-muted text-uppercase">Filter Ledger Records By Handling Officer</label>
+                    <label class="form-label small fw-bold text-muted text-uppercase">Filter Ledger Records By Dealing Officer</label>
                     <select name="officer_id" class="form-select form-select-lg border-primary">
-                        <option value="">-- View All Active Pipeline Assignments --</option>
+                        <option value="">-- View All Active Assignments --</option>
                         <?php foreach($officers_array as $off): ?>
                             <option value="<?= $off['id'] ?>" <?= $officer_id == $off['id'] ? 'selected' : '' ?>>
                                 <?= htmlspecialchars(!empty($off['full_name']) ? $off['full_name'] : $off['username']) ?>

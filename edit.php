@@ -50,7 +50,7 @@ $update = $conn->prepare("UPDATE office_files SET branch_name=?, division=?, cli
 
 // Note the extra "s" for updated_by
 $update->bind_param("ssssssssi", $branch, $division, $client, $cabinet, $shelf, $file_no, $remarks, $updated_by, $id);
-    $client = $_POST['client'];    
+    $client = isset($_POST['client']) ? ucwords(strtolower(trim($_POST['client']))) : '';    
     $division = $_POST['division'];
     $cabinet = $_POST['cabinet_name'];
     $shelf = $_POST['shelf_name'];
@@ -91,8 +91,8 @@ exit;
             </div>
         </div>
         <!-- This button helps the user navigate back easily -->
-        <a href="index.php" class="btn btn-success btn-sm shadow-sm">
-            <i class="fas fa-arrow-left me-1"></i> Back to Home
+        <a href="search.php" class="btn btn-success btn-sm shadow-sm">
+            <i class="fas fa-arrow-left me-1"></i> Back to Search
         </a>
     </div>
 <?php endif; ?>  

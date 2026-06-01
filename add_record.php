@@ -22,7 +22,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // --- NEW BRANCH SPLIT LOGIC END ---
 
     $division = $_POST['division'] ?? '';
-    $client   = $_POST['client'] ?? '';
+    $client = isset($_POST['client']) ? ucwords(strtolower(trim($_POST['client']))) : '';
     $cabinet  = $_POST['cabinet_name'] ?? '';
     $shelf    = $_POST['shelf_name'] ?? '';
     $file_no  = $_POST['file_no'] ?? '';
@@ -38,7 +38,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $last_id = $conn->insert_id; 
 
         
-        $message = "<div class='alert alert-success'>Record and PDF attachments saved successfully! <a href='index.php'>View Table</a></div>";
+        $message = "<div class='alert alert-success'>Record and PDF attachments saved successfully! <a href='search.php'>View Table</a></div>";
     } else {
         $message = "<div class='alert alert-danger'>Error: " . $conn->error . "</div>";
     }
@@ -90,8 +90,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         </select>
     </div>
 </div>
-                
-
                 <div class="row mb-3">
                     <div class="col-md-4">
                         <label class="form-label fw-bold">Cabinet No</label>
@@ -120,61 +118,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     </div>
 </div>
 
-<script>
-// Required Description Validation
-document.getElementById('addForm').onsubmit = function(e) {
-    let rows = document.querySelectorAll('.attachment-row');
-    for (let row of rows) {
-        let fileInput = row.querySelector('.file-input');
-        let descInput = row.querySelector('.desc-input');
-        
-        // If a file is chosen, the description MUST be filled
-        if (fileInput.files.length > 0 && descInput.value.trim() === "") {
-            alert("Please provide a description for all selected attachments.");
-            descInput.focus();
-            return false; 
-        }
-    }
-    return true;
-};
-
-// Add dynamic rows
-document.getElementById('add-more').addEventListener('click', function() {
-    const container = document.getElementById('attachment-container');
-    const newRow = document.createElement('div');
-    newRow.className = 'row g-2 mb-2 attachment-row';
-    newRow.innerHTML = `
-        <div class="col-md-5">
-            <input type="file" name="attachments[]" class="form-control file-input" accept=".pdf">
-        </div>
-        <div class="col-md-6">
-            <input type="text" name="attachment_descriptions[]" class="form-control desc-input" placeholder="Description (e.g. Office Note, Board Memo etc))">
-        </div>
-        <div class="col-md-1">
-            <button type="button" class="btn btn-danger w-100 remove-row"><i class="fas fa-minus"></i></button>
-        </div>
-    `;
-    container.appendChild(newRow);
-});
-
-// Remove dynamic rows
-document.getElementById('attachment-container').addEventListener('click', function(e) {
-    if (e.target.classList.contains('remove-row') || e.target.closest('.remove-row')) {
-        e.target.closest('.attachment-row').remove();
-    }
-});
-
-// Front-end file type check
-document.addEventListener('change', function(e) {
-    if (e.target.classList.contains('file-input')) {
-        const file = e.target.files[0];
-        if (file && file.type !== "application/pdf") {
-            alert("Only PDF files are allowed!");
-            e.target.value = ""; 
-        }
-    }
-});
-</script>
 <?php
 include 'footer.php';
 ?>

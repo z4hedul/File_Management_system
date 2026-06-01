@@ -104,11 +104,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     };
 
-    // Process the standard static fields
+    // Process the standard static fields (Branch Proposal added as first key)
     $document_map = [
-        'file_office_note'     => 'Office Note',
+        'file_branch_proposal' => 'Branch Proposal',
         'file_comm_memo'       => 'Committee Memo',
         'file_comm_minutes'    => 'Committee Minutes',
+        'file_office_note'     => 'Office Note',
         'file_board_memo'      => 'Board Memo',
         'file_board_minutes'   => 'Board Minutes',
         'file_sanction_letter' => 'Sanction Letter'
@@ -208,7 +209,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     </div>
 
     <form method="POST" enctype="multipart/form-data">
-        <!-- APPROVAL & DATE DETAILS -->
         <div class="card mb-4 border-primary shadow-sm">
             <div class="card-header bg-primary text-white fw-bold small">APPROVAL & DATE DETAILS</div>
             <div class="card-body bg-light">
@@ -248,7 +248,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             </div>
         </div>
 
-        <!-- DOCUMENT ATTACHMENTS CARD -->
         <div class="card mb-4 border-success shadow-sm">
             <div class="card-header bg-success text-white fw-bold small d-flex justify-content-between align-items-center">
                 <span><i class="fas fa-paperclip me-1"></i> REQUIRED WORKFLOW DOCUMENT ATTACHMENTS</span>
@@ -257,12 +256,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 </button>
             </div>
             <div class="card-body bg-light">
-                <!-- Row containing standard document nodes -->
                 <div class="row g-3" id="static-attachments-container">
                     <div class="col-md-4">
-                        <label class="form-label small fw-bold text-secondary">Office Note</label>
-                        <input type="file" name="file_office_note" class="form-control border-success">
+                        <label class="form-label small fw-bold text-secondary">Branch Proposal</label>
+                        <input type="file" name="file_branch_proposal" class="form-control border-success">
                     </div>
+                    
                     <div class="col-md-4">
                         <label class="form-label small fw-bold text-secondary">Committee Memo</label>
                         <input type="file" name="file_comm_memo" class="form-control border-success">
@@ -270,6 +269,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     <div class="col-md-4">
                         <label class="form-label small fw-bold text-secondary">Committee Minutes</label>
                         <input type="file" name="file_comm_minutes" class="form-control border-success">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-bold text-secondary">Office Note</label>
+                        <input type="file" name="file_office_note" class="form-control border-success">
                     </div>
                     <div class="col-md-4">
                         <label class="form-label small fw-bold text-secondary">Board Memo</label>
@@ -285,12 +288,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     </div>
                 </div>
 
-                <!-- Targeted container wrapper where dynamic custom attachments inject -->
                 <div id="dynamic-attachments-container" class="mt-2"></div>
             </div>
         </div>
 
-        <!-- APPROVED FACILITIES -->
         <h6 class="fw-bold mb-3"><i class="fas fa-list"></i> Approved Facilities</h6>
         <div id="facility-container">
             <div class="row g-2 mb-3 facility-row border-bottom pb-3">
