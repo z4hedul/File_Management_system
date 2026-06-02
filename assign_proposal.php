@@ -52,21 +52,33 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $file_id         = $preset_file_id; 
     $user_id         = intval($_POST['user_id'] ?? 0);
     $proposal_status = trim($_POST['proposal_status'] ?? 'Proposal In Preparation');
-    $proposal_amount = trim($_POST['proposal_amount'] ?? '');
-    $proposal_type   = trim($_POST['proposal_type'] ?? '');
+    
+    // Arrays sent via the dynamic form elements
+    $proposal_types   = $_POST['proposal_type'] ?? [];
+    $proposal_amounts = $_POST['proposal_amount'] ?? [];
 
-    if ($file_id > 0 && $user_id > 0) {
+    if ($file_id > 0 && $user_id > 0 && !empty($proposal_types)) {
         
         $conn->begin_transaction();
 
         try {
-            // A. Insert the full proposal spec details into the history log ledger table
-            $log_stmt = $conn->prepare("INSERT INTO proposal_assignments (file_id, user_id, proposal_status, proposal_amount, proposal_type) VALUES (?, ?, ?, ?, ?)");
-            $log_stmt->bind_param("iisss", $file_id, $user_id, $proposal_status, $proposal_amount, $proposal_type);
-            $log_stmt->execute();
+            // A. Prepare query to insert data across your exact table structure
+            $log_stmt = $conn->prepare("INSERT INTO proposal_assignments (file_id, user_id, proposal_status, proposal_amount, proposal_type, assigned_date) VALUES (?, ?, ?, ?, ?, NOW())");
+            
+            // Loop over each dynamic entry pair entered by the operator
+            for ($i = 0; $i < count($proposal_types); $i++) {
+                $p_type = trim($proposal_types[$i]);
+                // Clear out formatting commas from money inputs prior to floating numeric validation
+                $p_amount = trim(str_replace(',', '', $proposal_amounts[$i]));
+                
+                if (!empty($p_type)) {
+                    $log_stmt->bind_param("iisss", $file_id, $user_id, $proposal_status, $p_amount, $p_type);
+                    $log_stmt->execute();
+                }
+            }
             $log_stmt->close();
 
-            // B. FIX: Only update assigned_user_id inside office_files (Removed non-existent proposal_status column)
+            // B. Only update assigned_user_id inside office_files
             $upd_stmt = $conn->prepare("UPDATE office_files SET assigned_user_id = ? WHERE id = ?");
             $upd_stmt->bind_param("ii", $user_id, $file_id);
             $upd_stmt->execute();
@@ -74,7 +86,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
             $conn->commit();
 
-            $status_message = '<div class="alert alert-success"><i class="fas fa-check-circle me-1"></i> Assignment logged and status updated successfully! Redirecting...</div>';
+            $status_message = '<div class="alert alert-success"><i class="fas fa-check-circle me-1"></i> All assignments logged and status updated successfully! Redirecting...</div>';
             header("refresh:2;url=proposal_assignments.php");
             
         } catch (mysqli_sql_exception $e) {
@@ -82,7 +94,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $status_message = '<div class="alert alert-danger">Database Transaction Error: ' . htmlspecialchars($e->getMessage()) . '</div>';
         }
     } else {
-        $status_message = '<div class="alert alert-warning">Please select a valid officer to assign this task.</div>';
+        $status_message = '<div class="alert alert-warning">Please select a valid officer and fill in at least one proposal variant.</div>';
     }
 }
 
@@ -139,7 +151,7 @@ $users_result = $conn->query("SELECT id, username, full_name, employee_id FROM u
 
         <div class="card mb-4 border-primary shadow-sm">
             <div class="card-header bg-primary text-white fw-bold small">
-                <i class="fas fa-edit me-1"></i> PROPOSAL SPECIFICATIONS & ASSIGNMENT DETAILS
+                <i class="fas fa-edit me-1"></i> PROPOSAL SPECIFICATIONS &amp; ASSIGNMENT DETAILS
             </div>
             <div class="card-body bg-white">
                 <div class="row g-3">
@@ -159,13 +171,29 @@ $users_result = $conn->query("SELECT id, username, full_name, employee_id FROM u
                         </select>
                     </div>
 
-                    <div class="col-md-6">
-                        <label class="form-label fw-bold text-muted small mb-1">Proposal Type / Facility Mode</label>
-                        <input type="text" name="proposal_type" class="form-control border-primary" placeholder="e.g., Term Loan, Working Capital" required>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label fw-bold text-muted small mb-1">Proposal Amount Assessed</label>
-                        <input type="text" name="proposal_amount" class="form-control border-primary font-monospace" placeholder="e.g., 5,000,000" required>
+                    <div class="col-md-12">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <label class="form-label fw-bold text-muted small mb-0">Proposal Facilities Information</label>
+                            <button type="button" class="btn btn-sm btn-success px-3 rounded-pill fw-semibold" id="add-proposal-node-btn">
+                                <i class="fas fa-plus-circle me-1"></i> Add Facility Row
+                            </button>
+                        </div>
+
+                        <div id="proposal-inputs-wrapper">
+                            <div class="row g-2 proposal-data-row mb-2 pb-2 border-bottom align-items-end">
+                                <div class="col-md-6">
+                                    <label class="form-label small text-secondary font-monospace mb-1">Proposal Type / Facility Mode</label>
+                                    <input type="text" name="proposal_type[]" class="form-control border-primary" placeholder="e.g., Term Loan, Working Capital" required>
+                                </div>
+                                <div class="col-md-5">
+                                    <label class="form-label small text-secondary font-monospace mb-1">Proposal Amount</label>
+                                    <input type="text" name="proposal_amount[]" class="form-control border-primary font-monospace" placeholder="e.g., 5000000" required>
+                                </div>
+                                <div class="col-md-1 text-center">
+                                    <button type="button" class="btn btn-outline-danger btn-sm disabled opacity-25 w-100" style="padding: 7px 0;"><i class="fas fa-trash-alt"></i></button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="col-md-12">
@@ -180,14 +208,52 @@ $users_result = $conn->query("SELECT id, username, full_name, employee_id FROM u
 
         <div class="pt-3 d-flex gap-2">
             <button type="submit" class="btn btn-primary btn-lg px-5 shadow">
-                <i class="fas fa-save me-1"></i> Deploy & Save Assignment Logs
+                <i class="fas fa-save me-1"></i> Deploy &amp; Save Assignment Logs
             </button>
             <a href="index.php" class="btn btn-lg btn-light border">Cancel</a>
         </div>
     </form>
 </div>
-<?php
-include 'footer.php';
-?>
+
+<?php include 'footer.php'; ?>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const wrapper = document.getElementById("proposal-inputs-wrapper");
+    const addBtn  = document.getElementById("add-proposal-node-btn");
+
+    addBtn.addEventListener("click", function() {
+        // Construct clean HTML structure mapping multi-row tracking fields natively 
+        const newRow = document.createElement("div");
+        newRow.className = "row g-2 proposal-data-row mb-2 pb-2 border-bottom align-items-end";
+        
+        newRow.innerHTML = `
+            <div class="col-md-6">
+                <input type="text" name="proposal_type[]" class="form-control border-primary" placeholder="e.g., Term Loan, Working Capital" required>
+            </div>
+            <div class="col-md-5">
+                <input type="text" name="proposal_amount[]" class="form-control border-primary font-monospace" placeholder="e.g., 5000000" required>
+            </div>
+            <div class="col-md-1 text-center">
+                <button type="button" class="btn btn-danger btn-sm remove-facility-node w-100" style="padding: 7px 0;" title="Remove this record entry variant">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
+            </div>
+        `;
+        
+        wrapper.appendChild(newRow);
+    });
+
+    // Delegated Event Listener attached directly onto layout nodes to drop target elements cleanly
+    wrapper.addEventListener("click", function(event) {
+        if (event.target.closest(".remove-facility-node")) {
+            const targetRow = event.target.closest(".proposal-data-row");
+            if (targetRow) {
+                targetRow.remove();
+            }
+        }
+    });
+});
+</script>
 </body>
 </html>
