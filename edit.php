@@ -40,35 +40,36 @@ $data = $stmt->get_result()->fetch_assoc();
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // Use the session username to track who is making the change
     $updated_by = $_SESSION['username']; 
-// UPDATED LOGIC: Split branch_info into code and name
+    
+    // Split branch_info into code and name
     $branch_info = $_POST['branch_info'] ?? '';
     $parts = explode('-', $branch_info);
     $branch_code = isset($parts[0]) ? trim($parts[0]) : '';
     $branch_name = isset($parts[1]) ? trim($parts[1]) : '';
 
-$update = $conn->prepare("UPDATE office_files SET branch_name=?, division=?, client=?, cabinet_name=?, shelf_name=?, file_no=?, remarks=?, updated_by=? WHERE id=?");
-
-// Note the extra "s" for updated_by
-$update->bind_param("ssssssssi", $branch, $division, $client, $cabinet, $shelf, $file_no, $remarks, $updated_by, $id);
     $client = isset($_POST['client']) ? ucwords(strtolower(trim($_POST['client']))) : '';    
     $division = $_POST['division'];
+    $zone = $_POST['zone'] ?? ''; // Extract value from the dropdown select mapped to existing 'zone' column
     $cabinet = $_POST['cabinet_name'];
     $shelf = $_POST['shelf_name'];
     $file_no = $_POST['file_no'];
     $remarks = $_POST['remarks'];
-    $update = $conn->prepare("UPDATE office_files SET branch_code=?, branch_name=?, division=?, client=?, cabinet_name=?, shelf_name=?, file_no=?, remarks=?, updated_by=? WHERE id=?");
-   $update->bind_param("sssssssssi", $branch_code, $branch_name, $division, $client, $cabinet, $shelf, $file_no, $remarks, $updated_by, $id);
+    
+    // Updated SQL query to include the exact pre-existing 'zone' column
+    $update = $conn->prepare("UPDATE office_files SET branch_code=?, branch_name=?, division=?, zone=?, client=?, cabinet_name=?, shelf_name=?, file_no=?, remarks=?, updated_by=? WHERE id=?");
+    
+    // 10 strings and 1 integer type description parameter mapping
+    $update->bind_param("ssssssssssi", $branch_code, $branch_name, $division, $zone, $client, $cabinet, $shelf, $file_no, $remarks, $updated_by, $id);
     
     if ($update->execute()) {
-
         // --- ADDED: UPDATE EXISTING DESCRIPTIONS ---
-   $msg = "Updated";
+        $msg = "Updated";
 
         // Handle new PDF attachments
      
-        // This keeps the user on the edit page and passes a success flag in the URL
-header("Location: edit.php?id=$id&status=success");
-exit;
+        // Keeps the user on the edit page and passes a success flag in the URL
+        header("Location: edit.php?id=$id&status=success");
+        exit;
     }
 }
 ?>
@@ -81,7 +82,7 @@ exit;
     <link rel="stylesheet" href="assets/css/all.min.css">
 </head>
 <body class="bg-light p-5">
-<div class="container bg-white p-4 shadow rounded" style="max-width: 800px;">
+<div class="container bg-white p-4 shadow rounded" style="max-width: 850px;">
 <?php if (isset($_GET['status']) && $_GET['status'] == 'success'): ?>
     <div class="alert alert-success d-flex align-items-center justify-content-between shadow-sm" role="alert">
         <div class="d-flex align-items-center">
@@ -90,7 +91,6 @@ exit;
                 <strong>Update Successful!</strong> The record has been saved.
             </div>
         </div>
-        <!-- This button helps the user navigate back easily -->
         <a href="search.php" class="btn btn-success btn-sm shadow-sm">
             <i class="fas fa-arrow-left me-1"></i> Back to Search
         </a>
@@ -100,16 +100,19 @@ exit;
     <hr>
     <form method="POST" enctype="multipart/form-data" id="editForm">
         <div class="row mb-3">
-         <div class="mb-3">
-            <label class="fw-bold">Client Name</label>
-            <input type="text" name="client" class="form-control" value="<?=htmlspecialchars($data['client'] ?? '')?>" required>
+            <div class="mb-3">
+                <label class="fw-bold">Client Name</label>
+                <input type="text" name="client" class="form-control" value="<?=htmlspecialchars($data['client'] ?? '')?>" required>
+            </div>
         </div>
-            <div class="col-md-6">
+        
+        <div class="row mb-3">
+            <div class="col-md-4">
                 <label class="fw-bold">Branch Name</label>
                 <select name="branch_info" class="form-select" required>
                     <?php 
                     $branches = ["0101-Dilkusha", "0102-Khatungonj", "0103-Mohakhali", "0104-Motijheel"];
-                    // Reconstruct current value to match dropdown (Code-Name)
+                    // Reconstruct current value to match dropdown layout selection key (Code-Name)
                     $current_val = $data['branch_code'] . "-" . $data['branch_name'];
                     foreach($branches as $b) {
                         $sel = ($current_val == $b) ? "selected" : "";
@@ -118,7 +121,7 @@ exit;
                     ?>
                 </select>
             </div>
-            <div class="col-md-6">
+            <div class="col-md-4">
                 <label class="fw-bold">Division</label>
                 <select name="division" class="form-select" required>
                     <?php 
@@ -130,9 +133,32 @@ exit;
                     ?>
                 </select>
             </div>
+
+            <div class="col-md-4">
+                <label class="fw-bold">Select Zone</label>
+                <select name="zone" class="form-select" required>
+                    <?php 
+                    $zones = [
+                        "Head Office", 
+                        "Dhaka North Zone", 
+                        "Dhaka South Zone", 
+                        "Chattagram North Zone", 
+                        "Chattagram South Zone", 
+                        "Rajshahi Zone", 
+                        "Khulna Zone", 
+                        "Barishal Zone", 
+                        "Cumilla Zone"
+                    ];
+                    foreach($zones as $z) {
+                        $sel = (($data['zone'] ?? '') == $z) ? "selected" : "";
+                        echo "<option value='$z' $sel>$z</option>";
+                    }
+                    ?>
+                </select>
+            </div>
         </div>
 
-       <div class="row mb-3">
+        <div class="row mb-3">
             <div class="col-md-4"><label class="fw-bold">Cabinet</label><input type="text" name="cabinet_name" class="form-control" value="<?=htmlspecialchars($data['cabinet_name'] ?? '')?>" required></div>
             <div class="col-md-4"><label class="fw-bold">Shelf</label><input type="text" name="shelf_name" class="form-control" value="<?=htmlspecialchars($data['shelf_name'] ?? '')?>" required></div>
             <div class="col-md-4"><label class="fw-bold">File No</label><input type="text" name="file_no" class="form-control" value="<?=htmlspecialchars($data['file_no'] ?? '')?>" required></div>
@@ -142,7 +168,7 @@ exit;
             <label class="fw-bold">Remarks</label>
             <textarea name="remarks" class="form-control"><?=htmlspecialchars($data['remarks'] ?? '')?></textarea>
         </div>
-  <div class="mt-4">
+        <div class="mt-4">
             <button type="submit" class="btn btn-primary px-5">Update Record</button>
             <a href="index.php" class="btn btn-secondary">Cancel</a>
         </div>
@@ -150,7 +176,7 @@ exit;
 </div>
 
 <script>
-    // --- ADDED: VALIDATION LOGIC ---
+    // --- VALIDATION LOGIC ---
     document.getElementById('editForm').onsubmit = function(e) {
         let rows = document.querySelectorAll('.attachment-row');
         for (let row of rows) {

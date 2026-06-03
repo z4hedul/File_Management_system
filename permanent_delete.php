@@ -25,7 +25,7 @@ if (isset($_GET['id'])) {
         $stmt_history->execute();
 
         // Second: Delete related attachments if any
-        $stmt_attach = $conn->prepare("DELETE FROM file_attachments WHERE file_record_id = ?");
+        $stmt_attach = $conn->prepare("DELETE FROM attachments WHERE file_record_id = ?");
         $stmt_attach->bind_param("i", $id);
         $stmt_attach->execute();
 

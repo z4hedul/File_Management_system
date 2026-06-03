@@ -41,6 +41,7 @@ $total_assigned = $res_assigned ? $res_assigned->fetch_assoc()['total'] : 0;
 
 // 2. Fetch aggregate status pipelines totals matrix block (Updated to count UNIQUE files)
 $stages = [
+    'proposal_received' => "Proposal Received",
     'pending'           => "Pending",
     'in_prep'           => "Proposal In Preparation",
     'office_note'       => "Office Note",
@@ -62,8 +63,8 @@ foreach ($stages as $key => $status_value) {
     $stmt->close(); 
 }
 
-// Under Process tracking aggregate calculation
-$total_processing = $counts['in_prep'] + $counts['office_note'] + $counts['committee_memo'] + $counts['committee_minutes'] + $counts['board_memo'] + $counts['board_minutes'];
+// FIXED: Included $counts['proposal_received'] into your system processing math equation
+$total_processing = $counts['proposal_received'] + $counts['in_prep'] + $counts['office_note'] + $counts['committee_memo'] + $counts['committee_minutes'] + $counts['board_memo'] + $counts['board_minutes'];
 
 // 3. Relational Query pulling Officer Full Name from users table
 $matching_proposals = [];
@@ -166,11 +167,11 @@ $unassigned_res = $conn->query("
                     <i class="fas fa-search"></i>
                     <span>Search File</span>
                 </a>
-
                 <a href="add_record.php" class="btn btn-success d-inline-flex align-items-center gap-2 fw-semibold px-3 py-2 shadow-sm toolbar-action-btn">
                     <i class="fas fa-folder-plus"></i>
                     <span>New File Record</span>
                 </a>
+
                 <a href="proposal_assignments.php" class="btn btn-warning text-dark d-inline-flex align-items-center gap-2 fw-semibold px-3 py-2 shadow-sm toolbar-action-btn">
                     <i class="fas fa-file-signature"></i>
                     <span>Proposal Assign</span>
@@ -251,6 +252,15 @@ $unassigned_res = $conn->query("
         <div class="card-body p-4">
             <div class="d-flex flex-wrap gap-4 justify-content-between align-items-center text-center">
                 
+                <a href="index.php?status_view=Proposal+Received" class="pipeline-node-link <?php echo ($active_filter === 'Proposal Received') ? 'node-active' : ''; ?>">
+                    <div class="progress-circle-wrapper border-primary-subtle">
+                        <div class="progress-circle-inner bg-primary-subtle text-primary">
+                            <span class="fw-bold fs-3"><?php echo $counts['proposal_received']; ?></span>
+                        </div>
+                    </div>
+                    <div class="node-label text-primary font-monospace mt-2">Prop Received</div>
+                </a>
+
                 <a href="index.php?status_view=Pending" class="pipeline-node-link <?php echo ($active_filter === 'Pending') ? 'node-active' : ''; ?>">
                     <div class="progress-circle-wrapper border-secondary">
                         <div class="progress-circle-inner bg-secondary-subtle text-secondary">
@@ -262,7 +272,7 @@ $unassigned_res = $conn->query("
 
                 <a href="index.php?status_view=Proposal+In+Preparation" class="pipeline-node-link <?php echo ($active_filter === 'Proposal In Preparation') ? 'node-active' : ''; ?>">
                     <div class="progress-circle-wrapper border-primary">
-                        <div class="progress-circle-inner bg-primary-subtle text-primary">
+                        <div class="progress-circle-inner bg-light text-primary">
                             <span class="fw-bold fs-3"><?php echo $counts['in_prep']; ?></span>
                         </div>
                     </div>

@@ -8,7 +8,7 @@ if(isset($_GET['id'])) {
     $sql = "UPDATE office_files SET is_deleted = 1 WHERE id = $id";
 
     if ($conn->query($sql) === TRUE) {
-        header("Location: index.php?msg=moved_to_trash");
+        header("Location: search.php?msg=moved_to_trash");
         exit;
     } else {
         echo "Error: " . $conn->error;

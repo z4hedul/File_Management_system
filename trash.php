@@ -31,8 +31,8 @@ $result = $conn->query($sql)
 <html>
 <head>
     <title>Recycle Bin</title>
-    <link rel="stylesheet" href="style/bootstrap.min.css">
-    <link rel="stylesheet" href="style/all.min.css">
+    <link rel="stylesheet" href="assets/css/bootstrap.min.css">
+    <link rel="stylesheet" href="assets/css/all.min.css">
 </head>
 <body class="bg-light">
 <div class="container mt-5">

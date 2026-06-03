@@ -12,32 +12,28 @@ if (!isset($_SESSION['loggedin'])) {
 $message = "";
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-// --- NEW BRANCH SPLIT LOGIC START ---
+    // --- BRANCH SPLIT LOGIC ---
     $branch_info = $_POST['branch_info'] ?? '';
     $parts = explode('-', $branch_info);
     
-    // $parts[0] = "0101", $parts[1] = "Dilkusha"
     $branch_code = isset($parts[0]) ? trim($parts[0]) : '';
     $branch_name = isset($parts[1]) ? trim($parts[1]) : '';
-    // --- NEW BRANCH SPLIT LOGIC END ---
 
     $division = $_POST['division'] ?? '';
-    $client = isset($_POST['client']) ? ucwords(strtolower(trim($_POST['client']))) : '';
+    $zone     = $_POST['zone'] ?? ''; // Maps directly to your existing zone column
+    $client   = isset($_POST['client']) ? ucwords(strtolower(trim($_POST['client']))) : '';
     $cabinet  = $_POST['cabinet_name'] ?? '';
     $shelf    = $_POST['shelf_name'] ?? '';
     $file_no  = $_POST['file_no'] ?? '';
-    $remarks   = $_POST['remarks'] ?? '';
+    $remarks  = $_POST['remarks'] ?? '';
 
-    // 1. Insert the main record (Updated to include branch_code and branch_name)
-    $stmt = $conn->prepare("INSERT INTO office_files (branch_code, branch_name, division, client, cabinet_name, shelf_name, file_no, remarks) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+    // Insert statement using your existing 'zone' column
+    $stmt = $conn->prepare("INSERT INTO office_files (branch_code, branch_name, division, zone, client, cabinet_name, shelf_name, file_no, remarks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
     
-    // Notice: 9 "s" characters for 9 variables
-    $stmt->bind_param("ssssssss", $branch_code, $branch_name, $division, $client, $cabinet, $shelf, $file_no, $remarks);
+    $stmt->bind_param("sssssssss", $branch_code, $branch_name, $division, $zone, $client, $cabinet, $shelf, $file_no, $remarks);
 
     if ($stmt->execute()) {
         $last_id = $conn->insert_id; 
-
-        
         $message = "<div class='alert alert-success'>Record and PDF attachments saved successfully! <a href='search.php'>View Table</a></div>";
     } else {
         $message = "<div class='alert alert-danger'>Error: " . $conn->error . "</div>";
@@ -52,7 +48,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <title>Add New File Record</title>
     <link rel="stylesheet" href="assets/css/bootstrap.min.css">
     <link rel="stylesheet" href="assets/css/all.min.css">
-   </head>
+</head>
 <body class="bg-light p-5">
 
 <div class="container" style="max-width: 850px;">
@@ -66,30 +62,49 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <form method="POST" enctype="multipart/form-data" id="addForm">
                 <div class="row mb-3">
                     <div class="mb-3">
-                    <label class="form-label fw-bold">Client Name</label>
-                    <input type="text" name="client" class="form-control" placeholder="e.g. Jamuna Spinning Mills" required>
+                        <label class="form-label fw-bold">Client Name</label>
+                        <input type="text" name="client" class="form-control" placeholder="e.g. Jamuna Spinning Mills" required>
+                    </div>
                 </div>
-                    <div class="row mb-3">
-    <div class="col-md-6">
-        <label class="form-label fw-bold">Select Branch</label>
-        <select name="branch_info" class="form-select" required>
-            <option value="">-- Select Branch --</option>
-            <option value="0101-Dilkusha">0101-Dilkusha</option>
-            <option value="0102-Khatungonj">0102-Khatungonj</option>
-            <option value="0103-Mohakhali">0103-Mohakhali</option>
-            <option value="0104-Motijheel">0104-Motijheel</option>
-        </select>
-    </div>
-    
-    <div class="col-md-6">
-        <label class="form-label fw-bold">Division</label>
-        <select name="division" class="form-select" required>
-            <option value="Investment">Investment</option>
-            <option value="SME">SME</option>
-            <option value="IMRD">IMRD</option>
-        </select>
-    </div>
-</div>
+
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">Select Branch</label>
+                        <select name="branch_info" class="form-select" required>
+                            <option value="">-- Select Branch --</option>
+                            <option value="0101-Dilkusha">0101-Dilkusha</option>
+                            <option value="0102-Khatungonj">0102-Khatungonj</option>
+                            <option value="0103-Mohakhali">0103-Mohakhali</option>
+                            <option value="0104-Motijheel">0104-Motijheel</option>
+                        </select>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">Division</label>
+                        <select name="division" class="form-select" required>
+                            <option value="Investment">Investment</option>
+                            <option value="SME">SME</option>
+                            <option value="IMRD">IMRD</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">Select Zone</label>
+                        <select name="zone" class="form-select" required>
+                            <option value="">-- Select Zone --</option>
+                            <option value="Head Office">Head Office</option>
+                            <option value="Dhaka North Zone">Dhaka North Zone</option>
+                            <option value="Dhaka South Zone">Dhaka South Zone</option>
+                            <option value="Chattagram North Zone">Chattagram North Zone</option>
+                            <option value="Chattagram South Zone">Chattagram South Zone</option>
+                            <option value="Rajshahi Zone">Rajshahi Zone</option>
+                            <option value="Khulna Zone">Khulna Zone</option>
+                            <option value="Barishal Zone">Barishal Zone</option>
+                            <option value="Cumilla Zone">Cumilla Zone</option>
+                        </select>
+                    </div>
+                </div>
+
                 <div class="row mb-3">
                     <div class="col-md-4">
                         <label class="form-label fw-bold">Cabinet No</label>
@@ -104,6 +119,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         <input type="text" name="file_no" class="form-control" placeholder="Serial no of cabinet" required>
                     </div>
                 </div>
+
                 <div class="mb-4">
                     <label class="form-label fw-bold">Remarks</label>
                     <textarea name="remarks" class="form-control" rows="2" placeholder="Additional notes..."></textarea>

@@ -97,28 +97,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action_type'])) {
 }
 
 // Stats Calculations
-$total_users_res = $conn->query("SELECT COUNT(id) AS total FROM users");
-$total_users = $total_users_res->fetch_assoc()['total'] ?? 0;
 
-$active_assignees_res = $conn->query("SELECT COUNT(DISTINCT user_id) AS total FROM proposal_assignments WHERE user_id > 0 AND proposal_status NOT IN ('Approval/Sanction', 'Declined')");
-$active_assignees = $active_assignees_res->fetch_assoc()['total'] ?? 0;
-
-$assigned_tasks_res = $conn->query("SELECT COUNT(DISTINCT file_id) AS total FROM proposal_assignments WHERE user_id > 0 AND proposal_status NOT IN ('Approval/Sanction', 'Declined')");
-$assigned_tasks = $assigned_tasks_res->fetch_assoc()['total'] ?? 0;
 
 // Workforce Mapper Queries
-$assigned_map_query = "SELECT u.full_name, u.username, u.employee_id, GROUP_CONCAT(DISTINCT f.client SEPARATOR '||') AS client_list
-                       FROM proposal_assignments pa
-                       INNER JOIN users u ON pa.user_id = u.id
-                       INNER JOIN office_files f ON pa.file_id = f.id
-                       WHERE f.is_deleted = 0 AND pa.proposal_status NOT IN ('Approval/Sanction', 'Declined')
-                       GROUP BY u.id ORDER BY u.full_name ASC";
-$assigned_map_res = $conn->query($assigned_map_query);
 
-$unassigned_query = "SELECT id, full_name, username, employee_id FROM users 
-                     WHERE id NOT IN (SELECT DISTINCT user_id FROM proposal_assignments WHERE user_id > 0 AND proposal_status NOT IN ('Approval/Sanction', 'Declined'))
-                     ORDER BY full_name ASC";
-$unassigned_res = $conn->query($unassigned_query);
 
 // Filter Layout
 $officer_id = $_GET['officer_id'] ?? '';
@@ -194,49 +176,7 @@ $total_records = $ledger_data->num_rows;
 
     <?= $action_msg ?>
 
-    <div class="row g-3 mb-4">
-        <div class="col-md-4">
-            <div class="card shadow-sm border-0 bg-white h-100">
-                <div class="card-body d-flex align-items-center">
-                    <div class="bg-primary-subtle p-3 rounded text-primary me-3">
-                        <i class="fas fa-users fa-2x"></i>
-                    </div>
-                    <div>
-                        <h4 class="mb-0 fw-bold text-dark"><?= $total_users ?></h4>
-                        <small class="text-muted text-uppercase fw-bold" style="font-size:0.75rem; letter-spacing: 0.5px;">Total Users Registered</small>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="card shadow-sm border-0 bg-white h-100">
-                <div class="card-body d-flex align-items-center">
-                    <div class="bg-warning-subtle p-3 rounded text-warning me-3">
-                        <i class="fas fa-user-check fa-2x"></i>
-                    </div>
-                    <div>
-                        <h4 class="mb-0 fw-bold text-dark"><?= $active_assignees ?></h4>
-                        <small class="text-muted text-uppercase fw-bold" style="font-size:0.75rem; letter-spacing: 0.5px;">Active Assigned Officers</small>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="card shadow-sm border-0 bg-white h-100">
-                <div class="card-body d-flex align-items-center">
-                    <div class="bg-success-subtle p-3 rounded text-success me-3">
-                        <i class="fas fa-folder-minus fa-2x"></i>
-                    </div>
-                    <div>
-                        <h4 class="mb-0 fw-bold text-dark"><?= $assigned_tasks ?></h4>
-                        <small class="text-muted text-uppercase fw-bold" style="font-size:0.75rem; letter-spacing: 0.5px;">Active Clients Group</small>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="card shadow-sm border-0 mb-4 bg-white">
+        <div class="card shadow-sm border-0 mb-4 bg-white">
         <div class="card-body">
             <form method="GET" class="row g-3 align-items-end">
                 <div class="col-md-9">
