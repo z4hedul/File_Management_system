@@ -312,14 +312,20 @@ $unassigned_res = $conn->query("
                     </a>
                     
                     <?php if ($isAdmin): ?>
-                        <div class="admin-divider d-none d-xl-block"></div>
-                        <a href="add_user.php" class="btn btn-outline-danger toolbar-btn">
-                            <i class="fas fa-user-plus"></i> <span>Add User</span>
-                        </a>
-                        <a href="manage_users.php" class="btn btn-dark toolbar-btn text-white">
-                            <i class="fas fa-users-cog"></i> <span>Manage</span>
-                        </a>
-                    <?php endif; ?>
+    <div class="admin-divider d-none d-xl-block"></div>
+    
+    <a href="add_user.php" class="btn btn-outline-danger toolbar-btn px-3 fw-semibold">
+        <i class="fas fa-user-plus me-1 text-danger"></i> <span>Add User</span>
+    </a>
+    
+    <a href="manage_users.php" class="btn btn-dark toolbar-btn text-white px-3 fw-semibold">
+        <i class="fas fa-users-cog me-1"></i> <span>Manage Users</span>
+    </a>
+    
+    <a href="run_backup.php" class="btn btn-danger toolbar-btn text-white px-3 fw-semibold border border-secondary shadow-sm">
+        <i class="fas fa-database me-1 text-info"></i> <span>Run Backup</span>
+    </a>
+<?php endif; ?>
                 </div>
             </div>
         </div>

@@ -42,9 +42,10 @@
          <span class="footer-name2 fw-bold">Developed by:</span>
          <strong class="footer-name mx-1">Zahedul Alam Chowdhury</strong>
          <span class="text-muted">|</span>
+         <span class="small mx-1">Officer, <span class="footer-division">Investment Division</span></span>
+         <span class="text-muted">|</span>
          <span class="small footer-bank mx-1">First Security Islami Bank PLC</span>
          <span class="text-muted">|</span>
-         <span class="small mx-1">Officer, <span class="footer-division">Investment Division</span></span>
          <span class="footer-address small ms-2 d-none d-md-inline">
             <i class="fas fa-map-marker-alt text-danger me-1"></i>HO, Gulshan, Dhaka
          </span>
