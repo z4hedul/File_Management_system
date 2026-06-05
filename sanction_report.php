@@ -240,19 +240,19 @@ $ledger_list = $conn->query($q_detailed_ledger);
 </head>
 <body class="bg-light">
 <div class="container my-5">
-    
-    <!-- Top Header Control Panel -->
+<!-- Top Header Control Panel -->
     <div class="d-flex justify-content-between align-items-center mb-4 no-print">
         <div>
-            <h3 class="fw-bold text-dark m-0"><i class="fas fa-file-invoice-dollar text-primary me-2"></i>Executive Sanctions &amp; Facilities Report</h3>
-            <p class="text-muted small m-0">Live aggregated statistics and comprehensive facility type ledger verification.</p>
+            <h3 class="fw-bold text-dark m-0"><i class="fas fa-file-invoice-dollar text-primary me-2"></i>Sanctions &amp; Facilities Report</h3>
+            <p class="text-muted small m-0">Aggregated statistics and comprehensive facility type information</p>
         </div>
         <div class="d-flex gap-2">
             <button onclick="window.print()" class="btn btn-outline-dark shadow-sm"><i class="fas fa-print me-1"></i> Print Report</button>
             <a href="index.php" class="btn btn-primary shadow-sm"><i class="fas fa-tachometer-alt me-1"></i> Dashboard</a>
+            <a href="sanction_report2.php" class="btn btn-info toolbar-btn text-white"><i class="fas fa-chart-line"></i> <span>Reports 2</span>
+                    </a>
         </div>
     </div>
-
     <!-- DATE RANGE FILTER TOOLBAR CONTROL BLOCK -->
     <div class="card shadow-sm border-0 mb-4 bg-white no-print">
         <div class="card-body p-3">
@@ -278,7 +278,6 @@ $ledger_list = $conn->query($q_detailed_ledger);
             </form>
         </div>
     </div>
-
     <!-- VISUAL INDICATOR FOR ACTIVE DATE RANGES WHEN PRINTING -->
     <?php if (!empty($from_date) && !empty($to_date)): ?>
         <div class="alert alert-info border-0 shadow-sm d-flex justify-content-between align-items-center mb-4">
@@ -294,7 +293,6 @@ $ledger_list = $conn->query($q_detailed_ledger);
             <strong>Sanctions &amp; Facilities Ledger Report:</strong> Comprehensive Master Listing (All-Time Historical Overview)
         </div>
     <?php endif; ?>
-
     <!-- MAIN CORE METRICS MATRIX GRID -->
     <div class="row g-3 mb-4">
         <!-- Proposals Count -->
@@ -330,7 +328,6 @@ $ledger_list = $conn->query($q_detailed_ledger);
             </div>
         </div>
     </div>
-
     <!-- UPDATED: COMMITTEE MEETING & BOARD MEETING SUB-METRICS METRIC ROW -->
     <div class="row g-3 mb-4">
         <!-- Committee Summary Row -->
@@ -352,7 +349,6 @@ $ledger_list = $conn->query($q_detailed_ledger);
                 </div>
             </div>
         </div>
-
         <!-- Board Summary Row -->
         <div class="col-md-6">
             <div class="card report-card shadow-sm border-0 bg-white">
@@ -373,11 +369,10 @@ $ledger_list = $conn->query($q_detailed_ledger);
             </div>
         </div>
     </div>
-
     <!-- FACILITY TYPE AGGREGATED BREAKDOWN SECTION -->
     <div class="card shadow-sm border-0 bg-white mb-4">
         <div class="card-header bg-white py-3 border-bottom">
-            <h5 class="mb-0 fw-bold text-dark"><i class="fas fa-layer-group text-info me-2"></i>Facility Type Distribution Summary</h5>
+            <h5 class="mb-0 fw-bold text-dark"><i class="fas fa-layer-group text-info me-2"></i>Summary of Facility Type</h5>
         </div>
         <div class="table-responsive">
             <table class="table table-hover table-striped align-middle mb-0">

@@ -1,7 +1,6 @@
 <?php
  session_start();
 include 'db.php';
-
 // FIX: Initialize the variable with an empty string
 $error = ""; 
 
@@ -62,7 +61,10 @@ if ($result->num_rows === 1) {
 <html>
 <head>
     <title>Login - File Management System</title>
-    <link rel="stylesheet" href="assets/css/bootstrap.min.css">
+     <link rel="stylesheet" href="assets/css/bootstrap.min.css">
+    <link rel="stylesheet" href="assets/css/all.min.css">
+    <link rel="stylesheet" href="assets/css/style.css">
+
     <style>
         body { background-color: #f8f9fa; display: flex; align-items: center; height: 100vh; }
         .login-container { max-width: 500px; margin: auto; }
@@ -73,7 +75,6 @@ if ($result->num_rows === 1) {
 <div class="container login-container">
     <div class="card shadow login-card">
     <div class="card-body p-5 text-center">
-        <!-- Logo from the images folder -->
         <div class="mb-4">
             <img src="images/fsib_logo.jpg" alt="FSIB Logo" style="max-height: 120px; width: auto;">
         </div>
@@ -93,7 +94,17 @@ if ($result->num_rows === 1) {
                     <label class="form-label">Password</label>
                     <input type="password" name="password" class="form-control" required>
                 </div>
-                <button type="submit" class="btn btn-primary w-100">Login</button>
+                <button type="submit" class="btn btn-primary w-100 mb-3">Login</button>
+                
+                <div class="text-center mt-4 pt-2 border-top border-light">
+    <div class="d-inline-block p-2 rounded-2 bg-light border border-light-subtle text-start animate fade-in" style="max-width: 100%;">
+        <small class="d-block text-dark font-sans-serif" style="font-size: 0.82rem; line-height: 1.4;">
+            <i class="fas fa-info-circle text-primary me-1 fw-bold fs-6"></i>
+            <strong class="text-danger border-bottom border-danger-subtle pb-0.5" style="letter-spacing: -0.1px;">Forgot your password?</strong> 
+            <span class="text-muted ms-1">Please contact your System Administrator to request an account recovery reset.</span>
+        </small>
+    </div>
+</div>
             </form>
         </div>
     </div>

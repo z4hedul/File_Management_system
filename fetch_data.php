@@ -9,7 +9,7 @@ $start = isset($_POST['start']) ? intval($_POST['start']) : 0;
 $rowperpage = isset($_POST['length']) ? intval($_POST['length']) : 10;
 $searchValue = isset($_POST['search']['value']) ? $conn->real_escape_string($_POST['search']['value']) : '';
 
-// FIXED: Adjust sorting parameters to prioritize the master entry auto-increment ID (o.id)
+// Adjust sorting parameters to prioritize the master entry auto-increment ID (o.id)
 $columnSortOrder = (isset($_POST['order'][0]['dir']) && $_POST['order'][0]['dir'] === 'asc') ? 'ASC' : 'DESC';
 
 if (isset($_POST['order'][0]['column'])) {
@@ -42,6 +42,8 @@ $searchQuery = " ";
 if ($searchValue != '') {
     $searchQuery = " AND (o.client LIKE '%".$searchValue."%' OR 
                           o.branch_code LIKE '%".$searchValue."%' OR 
+                          o.branch_name LIKE '%".$searchValue."%' OR 
+                          o.zone LIKE '%".$searchValue."%' OR 
                           o.division LIKE '%".$searchValue."%' OR 
                           o.file_no LIKE '%".$searchValue."%' OR
                           o.remarks LIKE '%".$searchValue."%') ";
@@ -106,16 +108,33 @@ while ($row = $empRecords->fetch_assoc()) {
     }
     $actions_html .= "</div>";
 
+    // MATCHED COPIES DESIGN LOOK: Dynamic Element Compilation Blocks
+    $client_name_html = '<div class="fw-bold text-dark mb-0" style="font-size: 0.95rem;">' . htmlspecialchars($row['client'] ?? '') . '</div>';
+    
+    $branch_details_html = '<div class="mb-0 fw-semibold text-secondary"><i class="fas fa-code-branch text-info small me-1"></i>' . htmlspecialchars($row['branch_code'] ?? '') . ' - ' . htmlspecialchars($row['branch_name'] ?? '') . '</div>' .
+                           '<small class="text-muted font-monospace" style="font-size: 0.72rem;"><i class="fas fa-globe me-1"></i>' . htmlspecialchars($row['zone'] ?? '') . '</small>';
+
+    $div_badge_class = ($row['division'] === 'Investment') ? 'bg-success' : (($row['division'] === 'SME') ? 'bg-warning text-dark' : 'bg-info text-dark');
+    $division_html = '<span class="badge ' . $div_badge_class . ' fw-bold px-2 py-1">' . htmlspecialchars($row['division'] ?? '') . '</span>';
+
+    $cabinet_html = '<span class="badge bg-primary text-white cabinet-badge shadow-sm"><i class="fas fa-box me-1"></i>' . htmlspecialchars($row['cabinet_name'] ?? '') . '</span>';
+    
+    $shelf_html = '<span class="badge bg-secondary-subtle text-dark border shelf-badge"><i class="fas fa-layer-group me-1 text-secondary"></i>' . htmlspecialchars($row['shelf_name'] ?? '') . '</span>';
+    
+    $file_no_html = '' . htmlspecialchars($row['file_no'] ?? '');
+
+    $remarks_html = !empty($row['remarks']) ? '<small class="text-muted d-block text-truncate font-monospace" style="max-width: 250px; font-size:0.75rem;"><strong>Note:</strong> '.htmlspecialchars($row['remarks']).'</small>' : '';
+
     // Format array output to match DataTables structure
     $data[] = array(
-        "client"             => htmlspecialchars($row['client'] ?? ''),
-        "branch_code"        => htmlspecialchars($row['branch_code'] ?? ''),
-        "division"           => htmlspecialchars($row['division'] ?? ''),
-        "cabinet_name"       => htmlspecialchars($row['cabinet_name'] ?? ''),
-        "shelf_name"         => htmlspecialchars($row['shelf_name'] ?? ''),
-        "file_no"            => htmlspecialchars($row['file_no'] ?? ''),
+        "client"             => $client_name_html,
+        "branch_code"        => $branch_details_html,
+        "division"           => $division_html,
+        "cabinet_name"       => $cabinet_html,
+        "shelf_name"         => $shelf_html,
+        "file_no"            => $file_no_html,
         "last_sanction_date" => $sanction_date_html,
-        "remarks"            => htmlspecialchars($row['remarks'] ?? ''),
+        "remarks"            => $remarks_html,
         "actions"            => $actions_html
     );
 }

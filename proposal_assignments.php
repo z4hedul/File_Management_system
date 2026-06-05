@@ -11,33 +11,39 @@ $current_user_id = $_SESSION['id'] ?? $_SESSION['user_id'] ?? 0;
 $user_role       = $_SESSION['role'] ?? ''; 
 $action_msg = "";
 
+// ================= ADMIN DELETE ASSIGNMENT HANDLER =================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_type']) && $_POST['action_type'] === 'delete_assignment') {
     if (isset($user_role) && $user_role === 'admin') {
-        $delete_id = intval($_POST['assignment_id']);
-        $delete_sql = "DELETE FROM proposal_assignments WHERE assignment_id = ?"; 
+        $delete_ids_str = $_POST['assignment_ids'] ?? '';
         
-        $stmt = $conn->prepare($delete_sql);
-        if ($stmt) {
-            $stmt->bind_param("i", $delete_id);
-            if ($stmt->execute()) {
-                $action_msg = '<div class="alert alert-success alert-dismissible fade show shadow-sm border-start border-success border-4" role="alert">
-                                <i class="fas fa-check-circle me-2"></i><strong>Success!</strong> Assignment record was successfully removed.
-                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                               </div>';
-            } else {
-                $action_msg = '<div class="alert alert-danger shadow-sm"><strong>Database Error:</strong> Could not complete deletion.</div>';
+        if (!empty($delete_ids_str)) {
+            // Sanitize the list of comma-separated IDs safely into integers
+            $id_array = array_map('intval', explode(',', $delete_ids_str));
+            $id_placeholder = implode(',', $id_array);
+            
+            // Perform batch deletion using the group placeholder string
+            $delete_sql = "DELETE FROM proposal_assignments WHERE id IN ($id_placeholder)"; 
+            
+            try {
+                if ($conn->query($delete_sql)) {
+                    $action_msg = '<div class="alert alert-success alert-dismissible fade show shadow-sm border-start border-success border-4" role="alert">
+                                    <i class="fas fa-trash-alt me-2"></i><strong>Success!</strong> Assignment record group was successfully removed.
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                   </div>';
+                } else {
+                    $action_msg = '<div class="alert alert-danger shadow-sm"><strong>Database Error:</strong> Could not complete batch deletion.</div>';
+                }
+            } catch (mysqli_sql_exception $e) {
+                $action_msg = "<div class='alert alert-danger shadow-sm'><strong>Database Error:</strong> " . htmlspecialchars($e->getMessage()) . "</div>";
             }
-            $stmt->close();
         }
-        echo "<script>window.location.href='proposal_assignments.php';</script>";
-        exit;
     } else {
         $action_msg = '<div class="alert alert-danger shadow-sm"><strong>Access Denied:</strong> Authorized Corporate System Administrators only.</div>';
     }
 }
 
 // ================= INLINE FORM PROCESSOR INTERFACE =================
-if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action_type'])) {
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action_type']) && $_POST['action_type'] !== 'delete_assignment') {
     $target_assignment_ids = $_POST['assignment_ids'] ?? ''; // Contains comma-separated IDs for grouped rows
     $associated_file_id   = intval($_POST['file_id'] ?? 0); 
     $new_status           = trim($_POST['proposal_status'] ?? '');
@@ -96,12 +102,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action_type'])) {
     }
 }
 
-// Stats Calculations
-
-
-// Workforce Mapper Queries
-
-
 // Filter Layout
 $officer_id = $_GET['officer_id'] ?? '';
 $officers_array = [];
@@ -111,7 +111,6 @@ while($row_off = $officers_list->fetch_assoc()) {
 }
 
 // ================= MASTER LEDGER QUERY (DYNAMIC COMBINED AGGREGATION) =================
-// GROUP_CONCAT is utilized on both types and amounts using '||' as structural delineators.
 $query = "SELECT 
             GROUP_CONCAT(pa.id) AS assignment_ids,
             pa.file_id,
@@ -176,7 +175,7 @@ $total_records = $ledger_data->num_rows;
 
     <?= $action_msg ?>
 
-        <div class="card shadow-sm border-0 mb-4 bg-white">
+    <div class="card shadow-sm border-0 mb-4 bg-white">
         <div class="card-body">
             <form method="GET" class="row g-3 align-items-end">
                 <div class="col-md-9">
@@ -219,7 +218,6 @@ $total_records = $ledger_data->num_rows;
                                 $status_state = trim($row['assignment_log_status'] ?? ''); 
                                 $has_permission = (intval($row['assigned_officer_id']) === intval($current_user_id) || $user_role === 'admin');
                                 
-                                // Parse arrays from grouped strings safely
                                 $arr_types = explode('||', $row['combined_proposal_types'] ?? '');
                                 $arr_amounts = explode('||', $row['combined_proposal_amounts'] ?? '');
                             ?>
@@ -323,6 +321,7 @@ $total_records = $ledger_data->num_rows;
                                 </td>
 
                                 <td class="text-center bg-light-subtle">
+                                    <div class="d-flex flex-column gap-1">
                                     <?php if ($has_permission): ?>
                                         
                                         <?php if ($status_state === 'Proposal In Preparation'): ?>
@@ -335,24 +334,22 @@ $total_records = $ledger_data->num_rows;
                                                 </button>
                                             </form>
                                         <?php elseif ($status_state === 'Approval/Sanction'): ?>
-                                            <div class="d-flex flex-column gap-1">
-                                                <a href="add_facility.php?file_id=<?= $row['file_id'] ?>" class="btn btn-sm btn-success w-100 fw-bold">
-                                                    <i class="fas fa-plus-circle me-1"></i> Add Facility
-                                                </a>
-                                                <button type="button" class="btn btn-xs btn-link text-danger p-0 border-0 small text-decoration-none" style="font-size:11px;" onclick="showCorrectionRow(this)">
-                                                    <i class="fas fa-undo"></i> Revert Mistake
-                                                </button>
-                                                
-                                                <div class="correction-box d-none mt-1">
-                                                    <form method="POST" class="m-0">
-                                                        <input type="hidden" name="action_type" value="update_status">
-                                                        <input type="hidden" name="assignment_ids" value="<?= htmlspecialchars($row['assignment_ids'] ?? '') ?>">
-                                                        <input type="hidden" name="file_id" value="<?= $row['file_id'] ?>">
-                                                        <input type="hidden" name="proposal_status" value="Pending">
-                                                        <input type="text" name="remarks" class="form-control form-control-sm border-danger mb-1" placeholder="Why revert?" required style="font-size:11px;">
-                                                        <button type="submit" class="btn btn-danger btn-sm w-100 py-0" style="font-size:11px;">Confirm Revert</button>
-                                                    </form>
-                                                </div>
+                                            <a href="add_facility.php?file_id=<?= $row['file_id'] ?>" class="btn btn-sm btn-success w-100 fw-bold">
+                                                <i class="fas fa-plus-circle me-1"></i> Add Facility
+                                            </a>
+                                            <button type="button" class="btn btn-xs btn-link text-danger p-0 border-0 small text-decoration-none" style="font-size:11px;" onclick="showCorrectionRow(this)">
+                                                <i class="fas fa-undo"></i> Revert Mistake
+                                            </button>
+                                            
+                                            <div class="correction-box d-none mt-1">
+                                                <form method="POST" class="m-0">
+                                                    <input type="hidden" name="action_type" value="update_status">
+                                                    <input type="hidden" name="assignment_ids" value="<?= htmlspecialchars($row['assignment_ids'] ?? '') ?>">
+                                                    <input type="hidden" name="file_id" value="<?= $row['file_id'] ?>">
+                                                    <input type="hidden" name="proposal_status" value="Pending">
+                                                    <input type="text" name="remarks" class="form-control form-control-sm border-danger mb-1" placeholder="Why revert?" required style="font-size:11px;">
+                                                    <button type="submit" class="btn btn-danger btn-sm w-100 py-0" style="font-size:11px;">Confirm Revert</button>
+                                                </form>
                                             </div>
                                         <?php elseif ($status_state === 'Declined'): ?>
                                             <button type="button" class="btn btn-xs btn-outline-secondary w-100 py-1" style="font-size:11px;" onclick="showCorrectionRow(this)">
@@ -398,6 +395,17 @@ $total_records = $ledger_data->num_rows;
                                     <?php else: ?>
                                         <span class="text-muted small italic opacity-75"><i class="fas fa-user-slash me-1"></i> View Only</span>
                                     <?php endif; ?>
+
+                                    <?php if ($user_role === 'admin'): ?>
+                                        <form method="POST" class="m-0 mt-1" onsubmit="return confirm('CRITICAL SECURITY ACTION:\n\nAre you sure you want to permanently delete this assignment entry group from the corporate tracking boards? This cannot be undone.');">
+                                            <input type="hidden" name="action_type" value="delete_assignment">
+                                            <input type="hidden" name="assignment_ids" value="<?= htmlspecialchars($row['assignment_ids'] ?? '') ?>">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger w-100 py-1" style="font-size: 11px;">
+                                                <i class="fas fa-trash-alt me-1"></i> Remove Assignment
+                                            </button>
+                                        </form>
+                                    <?php endif; ?>
+                                    </div>
                                 </td>
                             </tr>
                             <?php endwhile; ?>

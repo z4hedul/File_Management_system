@@ -2,6 +2,7 @@
 session_start();
 include 'db.php';
 include 'header.php';
+
 // Security Check (Ensure only logged-in Admins can register new system accounts)
 if (!isset($_SESSION['loggedin'])) { header("location: login.php"); exit; }
 if ($_SESSION['role'] !== 'admin') {
@@ -21,21 +22,35 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $employee_id  = trim($_POST['employee_id']);
 
     if (!empty($username) && !empty($password)) {
-        // Securely hash password entry
-        $hashed_password = password_hash($password, PASSWORD_BCRYPT);
-
-        // Prepared Statement parsing all six attributes securely
-        $insert_sql = "INSERT INTO users (username, password, role, full_name, designation, employee_id) VALUES (?, ?, ?, ?, ?, ?)";
-        $stmt = $conn->prepare($insert_sql);
-        $stmt->bind_param("ssssss", $username, $hashed_password, $role, $full_name, $designation, $employee_id);
-
-        if ($stmt->execute()) {
-            header("Location: add_user.php?status=success");
-            exit;
+        
+        // Final Back-end Fallback Safety Check to completely block execution if username is duplicate
+        $check_stmt = $conn->prepare("SELECT id FROM users WHERE username = ? LIMIT 1");
+        $check_stmt->bind_param("s", $username);
+        $check_stmt->execute();
+        $check_stmt->store_result();
+        
+        if ($check_stmt->num_rows > 0) {
+            $error_msg = "Registration halted: The username '" . htmlspecialchars($username) . "' is already taken. Please choose another.";
+            $check_stmt->close();
         } else {
-            $error_msg = "Execution failed: " . htmlspecialchars($stmt->error);
+            $check_stmt->close();
+
+            // Securely hash password entry
+            $hashed_password = password_hash($password, PASSWORD_BCRYPT);
+
+            // Prepared Statement parsing all six attributes securely
+            $insert_sql = "INSERT INTO users (username, password, role, full_name, designation, employee_id) VALUES (?, ?, ?, ?, ?, ?)";
+            $stmt = $conn->prepare($insert_sql);
+            $stmt->bind_param("ssssss", $username, $hashed_password, $role, $full_name, $designation, $employee_id);
+
+            if ($stmt->execute()) {
+                header("Location: add_user.php?status=success");
+                exit;
+            } else {
+                $error_msg = "Execution failed: " . htmlspecialchars($stmt->error);
+            }
+            $stmt->close();
         }
-        $stmt->close();
     } else {
         $error_msg = "Please fill out all fundamental baseline fields.";
     }
@@ -73,7 +88,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <a href="index.php" class="btn btn-sm btn-outline-light" onclick="return confirm('Exit page form details?');"><i class="fas fa-home"></i></a>
         </div>
         <div class="card-body p-4 bg-white">
-            <form method="post" action="add_user.php">
+            <form method="post" action="add_user.php" id="registrationForm">
                 
                 <h5 class="text-secondary border-bottom pb-2 mb-3"><i class="fas fa-id-card me-1"></i> Profile Parameters</h5>
                 
@@ -97,7 +112,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 <div class="row g-3 mb-4">
                     <div class="col-md-6">
                         <label class="form-label small text-uppercase fw-bold text-muted">Account Username</label>
-                        <input type="text" name="username" class="form-control" placeholder="Unique account login nickname" required>
+                        <input type="text" name="username" id="usernameInput" class="form-control" placeholder="Unique account login nickname" autocomplete="off" required>
+                        <div id="usernameFeedback" class="form-text fw-bold small mt-1"></div>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label small text-uppercase fw-bold text-muted">Account System Role</label>
@@ -114,7 +130,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
                 <div class="d-flex justify-content-end gap-2 pt-3 border-top">
                     <a href="index.php" class="btn btn-secondary" onclick="return confirm('Cancel registration process?');">Cancel</a>
-                    <button type="submit" class="btn btn-primary px-4 shadow-sm fw-bold">Register User</button>
+                    <button type="submit" id="submitBtn" class="btn btn-primary px-4 shadow-sm fw-bold">Register User</button>
                 </div>
             </form>
         </div>
@@ -122,6 +138,65 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 </div>
 
 <script src="assets/js/bootstrap.bundle.min.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const usernameInput = document.getElementById('usernameInput');
+    const usernameFeedback = document.getElementById('usernameFeedback');
+    const registrationForm = document.getElementById('registrationForm');
+    const submitBtn = document.getElementById('submitBtn');
+    
+    let isUsernameValid = false;
+    let timeout = null;
+
+    usernameInput.addEventListener('input', function() {
+        const username = usernameInput.value.trim();
+        
+        // Clear previous timeouts to prevent spamming queries
+        clearTimeout(timeout);
+        
+        if (username === '') {
+            usernameFeedback.innerHTML = '';
+            usernameFeedback.className = 'form-text mt-1';
+            submitBtn.disabled = false;
+            isUsernameValid = false;
+            return;
+        }
+
+        // Add a micro debounce buffer window (300ms) to track typing states comfortably
+        usernameFeedback.innerHTML = '<span class="text-secondary"><i class="fas fa-spinner fa-spin me-1"></i> Checking database...</span>';
+        
+        timeout = setTimeout(() => {
+            fetch(`check_username.php?username=${encodeURIComponent(username)}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.available === true) {
+                        usernameFeedback.innerHTML = '<span class="text-success"><i class="fas fa-check-circle me-1"></i> Username is available.</span>';
+                        submitBtn.disabled = false;
+                        isUsernameValid = true;
+                    } else {
+                        usernameFeedback.innerHTML = '<span class="text-danger"><i class="fas fa-times-circle me-1"></i> Username is already taken! Registration locked.</span>';
+                        submitBtn.disabled = true;
+                        isUsernameValid = false;
+                    }
+                })
+                .catch(err => {
+                    usernameFeedback.innerHTML = '<span class="text-warning">Error processing validation stream.</span>';
+                });
+        }, 300);
+    });
+
+    // Enforce form submission prevention if username is caught invalid or taken
+    registrationForm.addEventListener('submit', function(e) {
+        if (usernameInput.value.trim() !== '' && !isUsernameValid) {
+            e.preventDefault();
+            alert('Cannot proceed with registration. Please input a unique, available username.');
+            usernameInput.focus();
+        }
+    });
+});
+</script>
+
 <?php
 include 'footer.php';
 ?>

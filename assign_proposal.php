@@ -54,8 +54,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $proposal_status = trim($_POST['proposal_status'] ?? 'Proposal In Preparation');
     
     // Arrays sent via the dynamic form elements
-    $proposal_types   = $_POST['proposal_type'] ?? [];
-    $proposal_amounts = $_POST['proposal_amount'] ?? [];
+    $proposal_types       = $_POST['proposal_type'] ?? [];
+    $proposal_types_other = $_POST['proposal_type_other'] ?? [];
+    $proposal_amounts     = $_POST['proposal_amount'] ?? [];
 
     if ($file_id > 0 && $user_id > 0 && !empty($proposal_types)) {
         
@@ -68,6 +69,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             // Loop over each dynamic entry pair entered by the operator
             for ($i = 0; $i < count($proposal_types); $i++) {
                 $p_type = trim($proposal_types[$i]);
+                $custom_type = trim($proposal_types_other[$i] ?? '');
+                
+                // Fallback translation condition logic check for handling 'Others' text strings
+                if ($p_type === 'Others' && !empty($custom_type)) {
+                    $p_type = $custom_type;
+                }
+                
                 // Clear out formatting commas from money inputs prior to floating numeric validation
                 $p_amount = trim(str_replace(',', '', $proposal_amounts[$i]));
                 
@@ -112,7 +120,7 @@ $users_result = $conn->query("SELECT id, username, full_name, employee_id FROM u
 </head>
 <body class="bg-light p-5">
 
-<div class="container bg-white p-4 shadow rounded" style="max-width: 800px;">
+<div class="container bg-white p-4 shadow rounded" style="max-width: 850px;">
     <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-2">
         <h4 class="text-primary mb-0"><i class="fas fa-user-check me-2"></i> File Assignment Registry Form</h4>
         <a href="index.php" class="btn btn-sm btn-outline-secondary"><i class="fas fa-arrow-left me-1"></i> Back</a>
@@ -180,16 +188,30 @@ $users_result = $conn->query("SELECT id, username, full_name, employee_id FROM u
                         </div>
 
                         <div id="proposal-inputs-wrapper">
-                            <div class="row g-2 proposal-data-row mb-2 pb-2 border-bottom align-items-end">
+                            <div class="row g-2 proposal-data-row mb-3 pb-3 border-bottom align-items-start">
                                 <div class="col-md-6">
-                                    <label class="form-label small text-secondary font-monospace mb-1">Proposal Type / Facility Mode</label>
-                                    <input type="text" name="proposal_type[]" class="form-control border-primary" placeholder="e.g., Term Loan, Working Capital" required>
+                                    <label class="form-label small text-secondary font-monospace mb-1">Facility Type</label>
+                                    <select name="proposal_type[]" class="form-control border-primary facility-type-select" required>
+                                        <option value="">-- Select Facility Type --</option>
+                                        <option value="L/C (C2C)">L/C (C2C)</option>
+                                        <option value="L/C Limit">L/C Limit</option>
+                                        <option value="BG (C2C)">BG (C2C)</option>
+                                        <option value="BG (Limit)">BG (Limit)</option>
+                                        <option value="BG(PG)">BG(PG)</option>
+                                        <option value="BG(BB)">BG(BB)</option>
+                                        <option value="BM(Hypo)">BM(Hypo)</option>
+                                        <option value="BS(PSI)">BS(PSI)</option>
+                                        <option value="BM(PIF)">BM(PIF)</option>
+                                        <option value="Credit Card">Credit Card</option>
+                                        <option value="Others">Others</option>
+                                    </select>
+                                    <input type="text" name="proposal_type_other[]" class="form-control border-primary facility-type-other mt-2" placeholder="Enter custom facility type" style="display:none;">
                                 </div>
                                 <div class="col-md-5">
                                     <label class="form-label small text-secondary font-monospace mb-1">Proposal Amount</label>
-                                    <input type="text" name="proposal_amount[]" class="form-control border-primary font-monospace" placeholder="e.g., 5000000" required>
+                                    <input type="number" step="0.01" name="proposal_amount[]" class="form-control border-primary font-monospace" placeholder="0.00" required>
                                 </div>
-                                <div class="col-md-1 text-center">
+                                <div class="col-md-1 text-center mt-4">
                                     <button type="button" class="btn btn-outline-danger btn-sm disabled opacity-25 w-100" style="padding: 7px 0;"><i class="fas fa-trash-alt"></i></button>
                                 </div>
                             </div>
@@ -222,17 +244,48 @@ document.addEventListener("DOMContentLoaded", function() {
     const wrapper = document.getElementById("proposal-inputs-wrapper");
     const addBtn  = document.getElementById("add-proposal-node-btn");
 
+    // Dynamic Element selection change tracking handler for tracking 'Others' state triggers
+    document.addEventListener('change', function(e) {
+        if (e.target.classList.contains('facility-type-select')) {
+            const rowContext = e.target.closest('.proposal-data-row');
+            const otherInput = rowContext.querySelector('.facility-type-other');
+            if (e.target.value === 'Others') {
+                otherInput.style.display = 'block';
+                otherInput.required = true;
+                otherInput.focus();
+            } else {
+                otherInput.style.display = 'none';
+                otherInput.required = false;
+                otherInput.value = '';
+            }
+        }
+    });
+
     addBtn.addEventListener("click", function() {
-        // Construct clean HTML structure mapping multi-row tracking fields natively 
+        // Construct standard facility options dropdown rows mapping exactly to add_record fields
         const newRow = document.createElement("div");
-        newRow.className = "row g-2 proposal-data-row mb-2 pb-2 border-bottom align-items-end";
+        newRow.className = "row g-2 proposal-data-row mb-3 pb-3 border-bottom align-items-start";
         
         newRow.innerHTML = `
             <div class="col-md-6">
-                <input type="text" name="proposal_type[]" class="form-control border-primary" placeholder="e.g., Term Loan, Working Capital" required>
+                <select name="proposal_type[]" class="form-control border-primary facility-type-select" required>
+                    <option value="">-- Select Facility Type --</option>
+                    <option value="L/C (C2C)">L/C (C2C)</option>
+                    <option value="L/C Limit">L/C Limit</option>
+                    <option value="BG (C2C)">BG (C2C)</option>
+                    <option value="BG (Limit)">BG (Limit)</option>
+                    <option value="BG(PG)">BG(PG)</option>
+                    <option value="BG(BB)">BG(BB)</option>
+                    <option value="BM(Hypo)">BM(Hypo)</option>
+                    <option value="BS(PSI)">BS(PSI)</option>
+                    <option value="BM(PIF)">BM(PIF)</option>
+                    <option value="Credit Card">Credit Card</option>
+                    <option value="Others">Others</option>
+                </select>
+                <input type="text" name="proposal_type_other[]" class="form-control border-primary facility-type-other mt-2" placeholder="Enter custom facility type" style="display:none;">
             </div>
             <div class="col-md-5">
-                <input type="text" name="proposal_amount[]" class="form-control border-primary font-monospace" placeholder="e.g., 5000000" required>
+                <input type="number" step="0.01" name="proposal_amount[]" class="form-control border-primary font-monospace" placeholder="0.00" required>
             </div>
             <div class="col-md-1 text-center">
                 <button type="button" class="btn btn-danger btn-sm remove-facility-node w-100" style="padding: 7px 0;" title="Remove this record entry variant">
