@@ -47,7 +47,7 @@
          <span class="small footer-bank mx-1">First Security Islami Bank PLC</span>
          <span class="text-muted">|</span>
          <span class="footer-address small ms-2 d-none d-md-inline">
-            <i class="fas fa-map-marker-alt text-danger me-1"></i>HO, Gulshan, Dhaka
+            <i class="fas fa-map-marker-alt text-danger me-1"></i>Head Office, Rangs-RD Center, Gulshan-1, Dhaka
          </span>
     </div>
 </footer>

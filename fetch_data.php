@@ -117,7 +117,7 @@ while ($row = $empRecords->fetch_assoc()) {
     $div_badge_class = ($row['division'] === 'Investment') ? 'bg-success' : (($row['division'] === 'SME') ? 'bg-warning text-dark' : 'bg-info text-dark');
     $division_html = '<span class="badge ' . $div_badge_class . ' fw-bold px-2 py-1">' . htmlspecialchars($row['division'] ?? '') . '</span>';
 
-    $cabinet_html = '<span class="badge bg-primary text-white cabinet-badge shadow-sm"><i class="fas fa-box me-1"></i>' . htmlspecialchars($row['cabinet_name'] ?? '') . '</span>';
+    $cabinet_html = '<span class="badge bg-primary text-white cabinet-badge shadow-sm"><i class="fas fa-warehouse me-1"></i>' . htmlspecialchars($row['cabinet_name'] ?? '') . '</span>';
     
     $shelf_html = '<span class="badge bg-secondary-subtle text-dark border shelf-badge"><i class="fas fa-layer-group me-1 text-secondary"></i>' . htmlspecialchars($row['shelf_name'] ?? '') . '</span>';
     

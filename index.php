@@ -299,7 +299,7 @@ $unassigned_res = $conn->query("
                         <i class="fas fa-warehouse"></i> <span>Cabinet View</span>
                     </a>
                     <a href="add_record.php" class="btn btn-success toolbar-btn text-white">
-                        <i class="fas fa-folder-plus"></i> <span>New Record</span>
+                        <i class="fas fa-folder-plus"></i> <span>New File Record</span>
                     </a>
                     <a href="proposal_assignments.php" class="btn btn-warning toolbar-btn text-dark">
                         <i class="fas fa-file-signature"></i> <span>Assign File</span>

@@ -17,11 +17,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_type']) && $_P
         $delete_ids_str = $_POST['assignment_ids'] ?? '';
         
         if (!empty($delete_ids_str)) {
-            // Sanitize the list of comma-separated IDs safely into integers
             $id_array = array_map('intval', explode(',', $delete_ids_str));
             $id_placeholder = implode(',', $id_array);
-            
-            // Perform batch deletion using the group placeholder string
             $delete_sql = "DELETE FROM proposal_assignments WHERE id IN ($id_placeholder)"; 
             
             try {
@@ -44,7 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_type']) && $_P
 
 // ================= INLINE FORM PROCESSOR INTERFACE =================
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action_type']) && $_POST['action_type'] !== 'delete_assignment') {
-    $target_assignment_ids = $_POST['assignment_ids'] ?? ''; // Contains comma-separated IDs for grouped rows
+    $target_assignment_ids = $_POST['assignment_ids'] ?? ''; 
     $associated_file_id   = intval($_POST['file_id'] ?? 0); 
     $new_status           = trim($_POST['proposal_status'] ?? '');
     $remarks              = trim($_POST['remarks'] ?? '');
@@ -53,10 +50,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action_type']) && $_PO
         $id_array = array_map('intval', explode(',', $target_assignment_ids));
         $id_placeholder = implode(',', $id_array);
 
-        // ADMIN REASSIGNMENT OVERRIDE
         if ($_POST['action_type'] === 'admin_reassign' && $user_role === 'admin') {
             $new_officer_id = intval($_POST['new_officer_id'] ?? 0);
-            
             if ($new_officer_id > 0) {
                 try {
                     $stmt1 = $conn->prepare("UPDATE office_files SET assigned_user_id = ? WHERE id = ?");
@@ -102,15 +97,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action_type']) && $_PO
     }
 }
 
-// Filter Layout
+// Filter Layout Parameters
 $officer_id = $_GET['officer_id'] ?? '';
+$from_date  = $_GET['from_date'] ?? '';
+$to_date    = $_GET['to_date'] ?? '';
+
 $officers_array = [];
 $officers_list = $conn->query("SELECT id, full_name, username FROM users ORDER BY full_name ASC");
 while($row_off = $officers_list->fetch_assoc()) {
     $officers_array[] = $row_off;
 }
 
-// ================= MASTER LEDGER QUERY (DYNAMIC COMBINED AGGREGATION) =================
+// ================= MASTER LEDGER QUERY =================
 $query = "SELECT 
             GROUP_CONCAT(pa.id) AS assignment_ids,
             pa.file_id,
@@ -128,7 +126,9 @@ $query = "SELECT
             f.branch_name,
             u.full_name AS officer_name,
             u.employee_id,
-            u.username
+            u.username,
+            (SELECT MAX(sanction_date) FROM file_facilities WHERE file_id = pa.file_id) AS official_sanction_date,
+            (SELECT sanction_letter_ref_no FROM file_facilities WHERE file_id = pa.file_id ORDER BY id DESC LIMIT 1) AS official_sanction_ref
           FROM proposal_assignments pa
           INNER JOIN office_files f ON pa.file_id = f.id
           INNER JOIN users u ON pa.user_id = u.id
@@ -137,10 +137,27 @@ $query = "SELECT
 $params = [];
 $types = "";
 
+// Apply Active Officer Filters if Chosen
 if (!empty($officer_id)) {
     $query .= " AND pa.user_id = ?";
     $params[] = intval($officer_id);
     $types .= "i";
+}
+
+// ================= DYNAMIC DATE CASTING CORRECTION =================
+if (!empty($from_date) && !empty($to_date)) {
+    $query .= " AND DATE(pa.assigned_date) BETWEEN ? AND ?";
+    $params[] = $from_date;
+    $params[] = $to_date;
+    $types .= "ss";
+} else {
+    $query .= " AND NOT (
+        pa.proposal_status = 'Approval/Sanction' 
+        AND COALESCE(
+            (SELECT MAX(sanction_date) FROM file_facilities WHERE file_id = pa.file_id), 
+            pa.assigned_date
+        ) < NOW() - INTERVAL 7 DAY
+    )";
 }
 
 $query .= " GROUP BY pa.file_id, pa.user_id, pa.proposal_status ORDER BY assigned_date DESC";
@@ -178,9 +195,9 @@ $total_records = $ledger_data->num_rows;
     <div class="card shadow-sm border-0 mb-4 bg-white">
         <div class="card-body">
             <form method="GET" class="row g-3 align-items-end">
-                <div class="col-md-9">
-                    <label class="form-label small fw-bold text-muted text-uppercase">Filter Ledger Records By Dealing Officer</label>
-                    <select name="officer_id" class="form-select form-select-lg border-primary">
+                <div class="col-md-4">
+                    <label class="form-label small fw-bold text-muted text-uppercase">Filter By Dealing Officer</label>
+                    <select name="officer_id" class="form-select border-primary">
                         <option value="">-- View All Active Assignments --</option>
                         <?php foreach($officers_array as $off): ?>
                             <option value="<?= $off['id'] ?>" <?= $officer_id == $off['id'] ? 'selected' : '' ?>>
@@ -189,9 +206,20 @@ $total_records = $ledger_data->num_rows;
                         <?php endforeach; ?>
                     </select>
                 </div>
-                <div class="col-md-3 d-flex gap-2">
-                    <button type="submit" class="btn btn-primary btn-lg w-100 fw-bold shadow-sm"><i class="fas fa-filter me-1"></i> Filter Table</button>
-                    <a href="proposal_assignments.php" class="btn btn-lg btn-outline-secondary" title="Reset Filters"><i class="fas fa-undo"></i></a>
+                
+                <div class="col-md-2">
+                    <label class="form-label small fw-bold text-muted text-uppercase">From Date</label>
+                    <input type="date" name="from_date" class="form-control border-primary" value="<?= htmlspecialchars($from_date) ?>">
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label small fw-bold text-muted text-uppercase">To Date</label>
+                    <input type="date" name="to_date" class="form-control border-primary" value="<?= htmlspecialchars($to_date) ?>">
+                </div>
+
+                <div class="col-md-4 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary w-100 fw-bold shadow-sm"><i class="fas fa-filter me-1"></i> Apply Filters</button>
+                    <a href="proposal_assignments.php" class="btn btn-outline-secondary" title="Reset Filters"><i class="fas fa-undo"></i></a>
                 </div>
             </form>
         </div>
@@ -207,8 +235,8 @@ $total_records = $ledger_data->num_rows;
                             <th style="width: 28%;">Client & Combined Facility Details</th>
                             <th style="width: 14%;">Storage Location</th>
                             <th style="width: 18%;">Assigned Dealing Officer</th>
-                            <th style="width: 12%;">Proposal Status</th>
-                            <th style="width: 16%;" class="text-center">Workflow Actions</th>
+                            <th style="width: 14%;">Proposal Status</th>
+                            <th style="width: 14%;" class="text-center">Workflow Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -301,6 +329,18 @@ $total_records = $ledger_data->num_rows;
                                             break;
                                         case 'Approval/Sanction':
                                             echo '<span class="badge bg-success border border-success px-2 py-1.5 rounded-pill w-100"><i class="fas fa-check-double me-1"></i>Sanctioned</span>';
+                                            
+                                            // Render custom sanction parameters matching the corrected schema column name
+                                            if (!empty($row['official_sanction_date']) || !empty($row['official_sanction_ref'])) {
+                                                echo '<div class="mt-2 p-2 bg-success-subtle text-success rounded border border-success-subtle text-start shadow-sm" style="font-size: 11px; line-height: 1.4;">';
+                                                if (!empty($row['official_sanction_date'])) {
+                                                    echo '<div class="d-flex justify-content-between"><strong>Date:</strong> <span class="font-monospace fw-bold">' . date('d-M-Y', strtotime($row['official_sanction_date'])) . '</span></div>';
+                                                }
+                                                if (!empty($row['official_sanction_ref'])) {
+                                                    echo '<div class="d-flex justify-content-between align-items-start gap-1"><strong>Ref:</strong> <span class="text-break font-monospace fw-bold text-end">' . htmlspecialchars($row['official_sanction_ref']) . '</span></div>';
+                                                }
+                                                echo '</div>';
+                                            }
                                             break;
                                         case 'Declined':
                                             echo '<span class="badge bg-danger text-white border border-danger px-2 py-1.5 rounded-pill w-100"><i class="fas fa-ban me-1"></i>Declined</span>';
