@@ -13,7 +13,7 @@ $id = isset($_GET['id']) ? intval($_GET['id']) : null; // The Main File ID
 if (!$id) { header("location: index.php"); exit; }
 
 // Fetch Main Client Info
-$stmt = $conn->prepare("SELECT client, file_no FROM office_files WHERE id = ?");
+$stmt = $conn->prepare("SELECT client, branch_name FROM office_files WHERE id = ?");
 $stmt->bind_param("i", $id);
 $stmt->execute();
 $main_data = $stmt->get_result()->fetch_assoc();
@@ -56,33 +56,49 @@ $fac_stmt->execute();
 $facilities = $fac_stmt->get_result();
 
 // 3. Update / Upload Logic
+// 3. Precision Update / Upload Logic (Sanction-by-Sanction tracking)
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $upload_dir = "uploads/";
     if (!is_dir($upload_dir)) { 
         mkdir($upload_dir, 0777, true); 
     }
 
-    // Begin Database Transaction for Atomic Updates
+    $current_modifier_id = $_SESSION['id'] ?? $_SESSION['user_id'] ?? null;
+
+    // Begin Database Transaction
     $conn->begin_transaction();
 
     try {
-        // Drop all current facility assignments for this record to accurately rewrite them.
-        $clear_stmt = $conn->prepare("DELETE FROM file_facilities WHERE file_record_id = ?");
-        $clear_stmt->bind_param("i", $id);
-        $clear_stmt->execute();
-        $clear_stmt->close();
+        // Collect all facility row IDs submitted from the form to know what to keep
+        $submitted_facility_ids = [];
 
-        // FIX: Read structural execution sequence row mapping tracker arrays
         if (isset($_POST['row_keys']) && is_array($_POST['row_keys'])) {
             
-            $ins_fac_sql = "INSERT INTO file_facilities 
-                (file_record_id, sanction_letter_ref_no, sanction_date, facility_type, amount, comm_meet_no, comm_meet_date, board_meet_no, board_meet_date) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
-            $ins_fac_stmt = $conn->prepare($ins_fac_sql);
+            // Prepared statements for precision row handling
+            $update_sql = "UPDATE file_facilities SET 
+                            sanction_letter_ref_no = ?, 
+                            sanction_date = ?, 
+                            facility_type = ?, 
+                            amount = ?, 
+                            comm_meet_no = ?, 
+                            comm_meet_date = ?, 
+                            board_meet_no = ?, 
+                            board_meet_date = ?,
+                            updated_by = ?
+                           WHERE id = ?";
+            $update_stmt = $conn->prepare($update_sql);
+
+            $insert_sql = "INSERT INTO file_facilities 
+                (file_record_id, user_id, updated_by, sanction_letter_ref_no, sanction_date, facility_type, amount, comm_meet_no, comm_meet_date, board_meet_no, board_meet_date) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            $insert_stmt = $conn->prepare($insert_sql);
 
             foreach ($_POST['row_keys'] as $index => $row_key) {
                 $row_date = $_POST['f_dates'][$index] ?? '';
                 if (empty($row_date)) continue;
+
+                // Extract individual database table row ID (if it exists for this row)
+                $existing_facility_id = !empty($_POST['facility_ids'][$index]) ? intval($_POST['facility_ids'][$index]) : null;
 
                 $suffix = $_POST['f_ref_suffixes'][$index] ?? '';
                 $full_ref_no = $sanction_ref_prefix . $suffix;
@@ -93,80 +109,93 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 }
 
                 $amount = floatval($_POST['f_amts'][$index] ?? 0);
-                
                 $comm_no = !empty($_POST['c_nos'][$index]) ? $_POST['c_nos'][$index] : null;
                 $comm_date = !empty($_POST['c_dates'][$index]) ? $_POST['c_dates'][$index] : null;
                 $board_no = !empty($_POST['b_nos'][$index]) ? $_POST['b_nos'][$index] : null;
                 $board_date = !empty($_POST['b_dates'][$index]) ? $_POST['b_dates'][$index] : null;
 
-                $ins_fac_stmt->bind_param(
-                    "isssdssss", 
-                    $id, $full_ref_no, $row_date, $fac_type, $amount, 
-                    $comm_no, $comm_date, $board_no, $board_date
-                );
-                $ins_fac_stmt->execute();
+                if ($existing_facility_id) {
+                    // ---------------------------------------------------------------
+                    // CASE A: EXISTING SANCTION ROW - Check if modifications happened
+                    // ---------------------------------------------------------------
+                    $fetch_current = $conn->prepare("SELECT * FROM file_facilities WHERE id = ?");
+                    $fetch_current->bind_param("i", $existing_facility_id);
+                    $fetch_current->execute();
+                    $current_data = $fetch_current->get_result()->fetch_assoc();
+                    $fetch_current->close();
 
-                // --- ATTACHMENT PROCESSING ENGINE (ALIGNED BY UNIQUE ROW KEYS) ---
-                $document_map = [
-                    'file_office_note'     => 'Office Note',
-                    'file_comm_memo'       => 'Committee Memo',
-                    'file_comm_minutes'    => 'Committee Minutes',
-                    'file_board_memo'      => 'Board Memo',
-                    'file_board_minutes'   => 'Board Minutes',
-                    'file_sanction_letter' => 'Sanction Letter'
-                ];
+                    if ($current_data) {
+                        // Compare submitted inputs against current database states
+                        $is_changed = (
+                            $current_data['sanction_letter_ref_no'] !== $full_ref_no ||
+                            $current_data['sanction_date'] !== $row_date ||
+                            $current_data['facility_type'] !== $fac_type ||
+                            floatval($current_data['amount']) !== $amount ||
+                            $current_data['comm_meet_no'] !== $comm_no ||
+                            $current_data['comm_meet_date'] !== $comm_date ||
+                            $current_data['board_meet_no'] !== $board_no ||
+                            $current_data['board_meet_date'] !== $board_date
+                        );
 
-                // Check for dynamic custom document lists added inside this explicit row signature context
-                if (isset($_POST['custom_doc_labels_'.$row_key]) && is_array($_POST['custom_doc_labels_'.$row_key])) {
-                    foreach ($_POST['custom_doc_labels_'.$row_key] as $c_idx => $custom_label) {
-                        if (!empty($custom_label)) {
-                            $input_key = 'custom_doc_file_' . $row_key . '_' . $c_idx;
-                            $document_map[$input_key] = $custom_label;
+                        if ($is_changed) {
+                            // Update row details and assign the CURRENT admin modifier ID
+                            $update_stmt->bind_param(
+                                "sssdssssii", 
+                                $full_ref_no, $row_date, $fac_type, $amount, 
+                                $comm_no, $comm_date, $board_no, $board_date, 
+                                $current_modifier_id, $existing_facility_id
+                            );
+                            $update_stmt->execute();
                         }
+                        // Track this ID so it is preserved (not deleted)
+                        $submitted_facility_ids[] = $existing_facility_id;
                     }
+                } else {
+                    // ---------------------------------------------------------------
+                    // CASE B: NEW SANCTION ROW ADDED IN FORM
+                    // ---------------------------------------------------------------
+                    // Sanctioned By is set to current user, Updated By stays NULL initially
+                    $null_updated_by = null; 
+                    $insert_stmt->bind_param(
+                        "iiisssdssss", 
+                        $id, $current_modifier_id, $null_updated_by, $full_ref_no, $row_date, $fac_type, $amount, 
+                        $comm_no, $comm_date, $board_no, $board_date
+                    );
+                    $insert_stmt->execute();
+                    
+                    // Track newly generated row ID
+                    $submitted_facility_ids[] = $insert_stmt->insert_id;
                 }
 
-                foreach ($document_map as $input_prefix => $description) {
-                    // Match standard vs explicit layout formatting safely
-                    if (strpos($input_prefix, 'custom_doc_file_') === 0) {
-                        $input_array_name = $input_prefix; 
-                    } else {
-                        $input_array_name = $input_prefix . '_' . $row_key;
-                    }
-
-                    if (!empty($_FILES[$input_array_name]['name'])) {
-                        $safe_filename = time() . '_' . preg_replace("/[^a-zA-Z0-9\._-]/", "_", basename($_FILES[$input_array_name]['name']));
-                        $target_filepath = $upload_dir . $safe_filename;
-                        
-                        if (move_uploaded_file($_FILES[$input_array_name]['tmp_name'], $target_filepath)) {
-                            $check_sql = "SELECT id, file_path FROM attachments WHERE file_record_id = ? AND sanction_date = ? AND description = ?";
-                            $chk_stmt = $conn->prepare($check_sql);
-                            $chk_stmt->bind_param("iss", $id, $row_date, $description);
-                            $chk_stmt->execute();
-                            $existing_file = $chk_stmt->get_result()->fetch_assoc();
-                            $chk_stmt->close();
-                            
-                            if ($existing_file) {
-                                if (file_exists($existing_file['file_path'])) {
-                                    @unlink($existing_file['file_path']);
-                                }
-                                $update_file_sql = "UPDATE attachments SET file_path = ? WHERE id = ?";
-                                $up_f_stmt = $conn->prepare($update_file_sql);
-                                $up_f_stmt->bind_param("si", $target_filepath, $existing_file['id']);
-                                $up_f_stmt->execute();
-                                $up_f_stmt->close();
-                            } else {
-                                $insert_file_sql = "INSERT INTO attachments (file_record_id, sanction_date, file_path, description) VALUES (?, ?, ?, ?)";
-                                $ins_f_stmt = $conn->prepare($insert_file_sql);
-                                $ins_f_stmt->bind_param("isss", $id, $row_date, $target_filepath, $description);
-                                $ins_f_stmt->execute();
-                                $ins_f_stmt->close();
-                            }
-                        }
-                    }
-                }
+                // --- (Keep your existing Attachment processing code right here unchanged) ---
+                // ...
             }
-            $ins_fac_stmt->close();
+            
+            $update_stmt->close();
+            $insert_stmt->close();
+        }
+
+        // -------------------------------------------------------------------------
+        // CLEANUP STEP: Delete only sanctions that the user manually removed from the form UI
+        // -------------------------------------------------------------------------
+        if (!empty($submitted_facility_ids)) {
+            // Build placeholders for IDs to keep
+            $placeholders = implode(',', array_fill(0, count($submitted_facility_ids), '?'));
+            $delete_sql = "DELETE FROM file_facilities WHERE file_record_id = ? AND id NOT IN ($placeholders)";
+            $delete_stmt = $conn->prepare($delete_sql);
+            
+            // Dynamic parameter mapping binding values sequence array
+            $bind_params = array_merge([$id], $submitted_facility_ids);
+            $types = "i" . str_repeat("i", count($submitted_facility_ids));
+            $delete_stmt->bind_param($types, ...$bind_params);
+            $delete_stmt->execute();
+            $delete_stmt->close();
+        } else {
+            // If form was submitted completely cleared, drop all entries for file record id
+            $delete_stmt = $conn->prepare("DELETE FROM file_facilities WHERE file_record_id = ?");
+            $delete_stmt->bind_param("i", $id);
+            $delete_stmt->execute();
+            $delete_stmt->close();
         }
 
         $conn->commit();
@@ -175,7 +204,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     } catch (Exception $e) {
         $conn->rollback();
-        echo "Failed to process form changes: " . htmlspecialchars($e->getMessage());
+        echo "Failed to process target modifications: " . htmlspecialchars($e->getMessage());
         exit;
     }
 }
@@ -219,7 +248,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <div class="d-flex justify-content-between align-items-center mb-4 bg-white p-3 rounded shadow-sm">
             <div>
                 <h4 class="mb-0 text-primary"><i class="fas fa-edit"></i> Edit Pipeline Facilities Matrix</h4>
-                <small class="text-muted">Client: <strong><?php echo htmlspecialchars($main_data['client']); ?></strong> (File No: <?php echo htmlspecialchars($main_data['file_no']); ?>)</small>
+                <small class="text-muted">Client: <strong><?php echo htmlspecialchars($main_data['client']); ?></strong> (Branch: <?php echo htmlspecialchars($main_data['branch_name']); ?>)</small>
             </div>
             <div class="d-flex gap-2">
                 <button type="button" id="add-new-row" class="btn btn-sm btn-success"><i class="fas fa-plus me-1"></i> Add Facility Row</button>
@@ -238,6 +267,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             ?>
                 <div class="card facility-card">
                     <input type="hidden" name="row_keys[]" value="<?php echo $rowIndex; ?>">
+                    <input type="hidden" name="facility_ids[]" value="<?php echo htmlspecialchars($f['id'] ?? ''); ?>">
+                    
                     <div class="card-body">
                         <div class="row g-3 mb-3">
                             <div class="col-md-3">
@@ -435,6 +466,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         card.className = 'card facility-card';
         card.innerHTML = `
             <input type="hidden" name="row_keys[]" value="${rowIndexCount}">
+            <input type="hidden" name="facility_ids[]" value="">
+            
             <div class="card-body">
                 <div class="row g-3 mb-3">
                     <div class="col-md-3">

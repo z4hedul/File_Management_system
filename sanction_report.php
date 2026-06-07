@@ -249,7 +249,7 @@ $ledger_list = $conn->query($q_detailed_ledger);
         <div class="d-flex gap-2">
             <button onclick="window.print()" class="btn btn-outline-dark shadow-sm"><i class="fas fa-print me-1"></i> Print Report</button>
             <a href="index.php" class="btn btn-primary shadow-sm"><i class="fas fa-tachometer-alt me-1"></i> Dashboard</a>
-            <a href="sanction_report2.php" class="btn btn-info toolbar-btn text-white"><i class="fas fa-chart-line"></i> <span>Reports 2</span>
+            <a href="details_sanction_report.php" class="btn btn-info toolbar-btn text-white"><i class="fas fa-chart-line"></i> <span>Details Report</span>
                     </a>
         </div>
     </div>
@@ -316,7 +316,7 @@ $ledger_list = $conn->query($q_detailed_ledger);
             <div class="card report-card shadow-sm bg-white p-3 border-start border-success border-4 h-100">
                 <div class="metric-label">No. of Sanctions</div>
                 <div class="metric-value font-monospace text-success"><?= number_format($sanc_metrics['total_sanctions']) ?></div>
-                <div class="small text-muted">Approved facilities timeline</div>
+                <div class="small text-muted">Approved Facilities Timeline</div>
             </div>
         </div>
         <!-- Sanctions Total Value -->
@@ -324,7 +324,7 @@ $ledger_list = $conn->query($q_detailed_ledger);
             <div class="card report-card shadow-sm bg-white p-3 border-start border-warning border-4 h-100">
                 <div class="metric-label">Amount of Sanction</div>
                 <div class="metric-value font-monospace text-dark text-truncate" style="font-size:1.35rem; padding-top: 5px;">BDT <?= number_format($sanc_metrics['total_sanction_amt'] ?? 0, 2) ?></div>
-                <div class="small text-muted">Total sanctioned volume</div>
+                <div class="small text-muted">Total Sanctioned Volume</div>
             </div>
         </div>
     </div>
@@ -426,7 +426,6 @@ $ledger_list = $conn->query($q_detailed_ledger);
                                 <td class="ps-4">
                                     <div class="fw-bold text-dark"><?= htmlspecialchars($row['client_name']) ?></div>
                                     <div class="text-muted" style="font-size: 11px;">
-                                        File No: <strong><?= htmlspecialchars($row['file_number'] ?? 'N/A') ?></strong> | 
                                         Division: <span class="badge bg-light text-dark border px-1"><?= htmlspecialchars($row['division']) ?></span>
                                     </div>
                                 </td>

@@ -32,12 +32,21 @@ $data = $stmt->get_result()->fetch_assoc();
 if (!$data) { echo "Record not found."; exit; }
 
 // 2. Fetch Facilities with optional date and type filters
+// 2. Fetch Facilities with the name of the actual user who created the record
+// 2. Fetch Facilities with optional date and type filters using correct schema keys
+// Replace your Section 2 query with this version
 $fac_stmt = $conn->prepare(
-    "SELECT * FROM file_facilities
-     WHERE file_record_id = ?
-       AND (? = '' OR sanction_date >= ?)
-       AND (? = '' OR sanction_date <= ?)
-       AND (? = '' OR facility_type LIKE CONCAT('%', ?, '%')) ORDER BY sanction_date DESC"
+    "SELECT ff.*, 
+            u1.full_name AS sanctioned_by_user,
+            u2.full_name AS updated_by_user 
+     FROM file_facilities ff
+     LEFT JOIN users u1 ON ff.user_id = u1.id
+     LEFT JOIN users u2 ON ff.updated_by = u2.id
+     WHERE ff.file_record_id = ?
+       AND (? = '' OR ff.sanction_date >= ?)
+       AND (? = '' OR ff.sanction_date <= ?)
+       AND (? = '' OR ff.facility_type LIKE CONCAT('%', ?, '%')) 
+     ORDER BY ff.sanction_date DESC"
 );
 $fac_stmt->bind_param(
     "issssss",
@@ -171,7 +180,7 @@ while ($file = $attachments_result->fetch_assoc()) {
         </h4>
         <div class="no-print">
             <button onclick="window.print()" class="btn btn-outline-secondary btn-sm"><i class="fas fa-print"></i> Print</button>
-            <a href="index.php" class="btn btn-secondary btn-sm">Home</a>
+            <a href="search.php" class="btn btn-secondary btn-sm">Back to Search</a>
         </div>
     </div>
 
@@ -296,24 +305,38 @@ while ($file = $attachments_result->fetch_assoc()) {
                         $display_comm_date = 'N/A';
                     }
                     ?>
-                    <div class="sanction-header d-flex justify-content-between align-items-center bg-light border p-3 mt-4 rounded-top shadow-sm">
-                        <div class="fw-bold text-dark">
-                            <i class="fas fa-calendar-check text-primary me-2"></i>
-                            <span class="badge bg-primary text-white me-2">Ref: <?php echo htmlspecialchars($rows[0]['sanction_letter_ref_no'] ?? 'N/A'); ?></span>
-                            <span class="text-muted">Sanction Date:</span> <?php echo htmlspecialchars($dateKey); ?>
-                        </div>
-                        <div class="text-end">
-                            <div class="small">
-                                <strong>Invest. Committee Meeting No &amp; (Date):</strong> <?php echo htmlspecialchars($rows[0]['comm_meet_no'] ?: 'N/A'); ?>
-                                <span class="text-muted">(<?php echo $display_comm_date; ?>)</span>
-                            </div>
-                            <div class="small">
-                                <strong>Board Meeting No &amp; (Date):</strong> <?php echo htmlspecialchars($rows[0]['board_meet_no'] ?: 'N/A'); ?>
-                                <span class="text-muted">(<?php echo $display_board_date; ?>)</span>
-                            </div>
-                        </div>
-                    </div>
-
+     <div class="sanction-header d-flex justify-content-between align-items-center bg-light border p-3 mt-4 rounded-top shadow-sm">
+    <div class="fw-bold text-dark">
+        <i class="fas fa-calendar-check text-primary me-2"></i>
+        <span class="badge bg-primary text-white me-2">Approval No: <?php echo htmlspecialchars($rows[0]['sanction_letter_ref_no'] ?? 'N/A'); ?></span>
+        <span class="text-muted">Sanction Date:</span> <?php echo htmlspecialchars($dateKey); ?>
+        
+        <div class="small mt-1 fw-normal text-muted d-flex align-items-center gap-3">
+    <div>
+        <i class="fas fa-user-check me-1 text-success" style="font-size: 0.8rem;"></i> 
+        Sanctioned By: <strong class="text-dark"><?php echo htmlspecialchars($rows[0]['sanctioned_by_user'] ?? 'System / Legacy'); ?></strong>
+    </div>
+    
+    <?php if (!empty($rows[0]['updated_by_user'])): ?>
+        <div class="border-start ps-3">
+            <i class="fas fa-user-edit me-1 text-warning" style="font-size: 0.8rem;"></i> 
+            Updated By: <strong class="text-dark"><?php echo htmlspecialchars($rows[0]['updated_by_user']); ?></strong>
+        </div>
+    <?php endif; ?>
+</div>
+    </div>
+    
+    <div class="text-end">
+        <div class="small">
+            <strong>Invest. Committee Meeting No &amp; (Date):</strong> <?php echo htmlspecialchars($rows[0]['comm_meet_no'] ?: 'N/A'); ?>
+            <span class="text-muted">(<?php echo $display_comm_date; ?>)</span>
+        </div>
+        <div class="small">
+            <strong>Board Meeting No &amp; (Date):</strong> <?php echo htmlspecialchars($rows[0]['board_meet_no'] ?: 'N/A'); ?>
+            <span class="text-muted">(<?php echo $display_board_date; ?>)</span>
+        </div>
+    </div>
+</div>
                     <table class="table table-hover border mb-0">
                         <thead class="table-white">
                             <tr class="small text-uppercase">

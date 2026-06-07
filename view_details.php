@@ -69,7 +69,7 @@ $history = $history_stmt->get_result();
                     </p>
                 </div>
                 <div class="card-footer bg-white border-0">
-                    <a href="index.php" class="btn btn-outline-secondary btn-sm w-100">
+                    <a href="search.php" class="btn btn-outline-secondary btn-sm w-100">
                         <i class="fas fa-arrow-left me-1"></i> Back to Dashboard
                     </a>
                 </div>

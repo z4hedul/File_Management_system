@@ -36,68 +36,76 @@ if ($facilityListRes) {
     }
 }
 
-$countQuery = "SELECT COUNT(*) AS total
-               FROM file_facilities ff
-               JOIN office_files o ON ff.file_record_id = o.id
-               WHERE o.is_deleted = 0
-                 AND (? = '' OR ff.sanction_date >= ?)
-                 AND (? = '' OR ff.sanction_date <= ?)
-                 AND (? = '' OR ff.facility_type LIKE CONCAT('%', ?, '%'))";
+// =========================================================================
+// BUILD PARAMETERS ARRAYS DYNAMICALLY TO AVOID BIND COUNT CRASHES
+// =========================================================================
+$where_clauses = ["o.is_deleted = 0"];
+$base_types = "";
+$base_values = [];
 
-// add year filter conditionally
-$yearCondition = '';
-$yearParamValue = null;
+if (!empty($from_date)) {
+    $where_clauses[] = "ff.sanction_date >= ?";
+    $base_types .= "s";
+    $base_values[] = $from_date . " 00:00:00";
+}
+if (!empty($to_date)) {
+    $where_clauses[] = "ff.sanction_date <= ?";
+    $base_types .= "s";
+    $base_values[] = $to_date . " 23:59:59";
+}
+if (!empty($facility_filter)) {
+    $where_clauses[] = "ff.facility_type LIKE CONCAT('%', ?, '%')";
+    $base_types .= "s";
+    $base_values[] = $facility_filter;
+}
+
 if ($selected_year !== '') {
     if (strtolower($selected_year) === 'unknown') {
-        $yearCondition = " AND (ff.sanction_date IS NULL OR ff.sanction_date = '' OR ff.sanction_date = '0000-00-00')";
+        $where_clauses[] = "(ff.sanction_date IS NULL OR ff.sanction_date = '' OR ff.sanction_date = '0000-00-00')";
     } elseif (is_numeric($selected_year)) {
-        $yearCondition = " AND YEAR(ff.sanction_date) = ?";
-        $yearParamValue = intval($selected_year);
+        $where_clauses[] = "YEAR(ff.sanction_date) = ?";
+        $base_types .= "i";
+        $base_values[] = intval($selected_year);
     }
 }
 
-$countQuery .= $yearCondition;
+$where_string = " WHERE " . implode(" AND ", $where_clauses);
+
+// 1. CALCULATE TOTAL COUNT FOR PAGINATION
+$countQuery = "SELECT COUNT(*) AS total
+               FROM file_facilities ff
+               JOIN office_files o ON ff.file_record_id = o.id" . $where_string;
 
 $countStmt = $conn->prepare($countQuery);
-
-// dynamic binding
-$count_types = 'ssssss';
-$count_values = [$from_date, $from_date, $to_date, $to_date, $facility_filter, $facility_filter];
-if ($yearParamValue !== null) { $count_types .= 'i'; $count_values[] = $yearParamValue; }
-
-if ($count_values) {
-    $refs = [];
-    foreach ($count_values as $k => $v) $refs[$k] = &$count_values[$k];
-    array_unshift($refs, $count_types);
-    call_user_func_array([$countStmt, 'bind_param'], $refs);
+if (!empty($base_types)) {
+    $countStmt->bind_param($base_types, ...$base_values);
 }
-
 $countStmt->execute();
 $countResult = $countStmt->get_result()->fetch_assoc();
 $total_count = intval($countResult['total'] ?? 0);
+$countStmt->close();
 
-// Build overall totals across all years for the active filters
+// 2. BUILD OVERALL TOTALS ACROSS ALL YEARS FOR ACTIVE FILTERS
 $globalTotals = [];
 $global_total_all = 0;
 $global_type_totals = [];
-$globalQuery = "SELECT COALESCE(NULLIF(UPPER(TRIM(ff.facility_type)), ''), 'UNKNOWN') AS facility_type, SUM(ff.amount) AS total_amt
+$globalQuery = "SELECT COALESCE(NULLIF(UPPER(TRIM(ff.facility_type)), ''), 'UNKNOWN') AS fac_type, SUM(ff.amount) AS total_amt
                 FROM file_facilities ff
-                JOIN office_files o ON ff.file_record_id = o.id
-                WHERE o.is_deleted = 0
-                  AND (? = '' OR ff.sanction_date >= ?)
-                  AND (? = '' OR ff.sanction_date <= ?)
-                  AND (? = '' OR ff.facility_type LIKE CONCAT('%', ?, '%'))
-                GROUP BY facility_type";
+                JOIN office_files o ON ff.file_record_id = o.id" . $where_string . " GROUP BY fac_type";
+
 $globalStmt = $conn->prepare($globalQuery);
-$globalStmt->bind_param('ssssss', $from_date, $from_date, $to_date, $to_date, $facility_filter, $facility_filter);
+if (!empty($base_types)) {
+    $globalStmt->bind_param($base_types, ...$base_values);
+}
 $globalStmt->execute();
 $globalRes = $globalStmt->get_result();
 while ($row = $globalRes->fetch_assoc()) {
-    $type = $row['facility_type'];
+    $type = $row['fac_type'];
     $amt = floatval($row['total_amt'] ?? 0);
     $global_type_totals[$type] = $amt;
     $global_total_all += $amt;
 }
+$globalStmt->close();
 
 // Pagination settings
 $per_page = 25;
@@ -105,19 +113,28 @@ $page = max(1, intval($_GET['page'] ?? 1));
 $offset = ($page - 1) * $per_page;
 $total_pages = max(1, (int)ceil($total_count / max(1, $per_page)));
 
-// Build a year list from the database
+// 3. BUILD A YEAR SUMMARY LIST SIDEBAR
 $available_years = [];
 $yearsQuery = "SELECT COALESCE(YEAR(ff.sanction_date), 0) AS yr, COUNT(*) AS row_count, SUM(ff.amount) AS total
                FROM file_facilities ff
-               JOIN office_files o ON ff.file_record_id = o.id
-               WHERE o.is_deleted = 0
-                 AND (? = '' OR ff.sanction_date >= ?)
-                 AND (? = '' OR ff.sanction_date <= ?)
-                 AND (? = '' OR ff.facility_type LIKE CONCAT('%', ?, '%'))
-               GROUP BY yr
-               ORDER BY yr DESC";
-$yearsStmt = $conn->prepare($yearsQuery);
-$yearsStmt->bind_param('ssssss', $from_date, $from_date, $to_date, $to_date, $facility_filter, $facility_filter);
+               JOIN office_files o ON ff.file_record_id = o.id" . $where_string . " GROUP BY yr ORDER BY yr DESC";
+
+// Re-compile variables without specific year restrictions for the dynamic year tab sidebar totals
+$year_summary_clauses = ["o.is_deleted = 0"];
+$year_summary_types = "";
+$year_summary_values = [];
+if (!empty($from_date)) { $year_summary_clauses[] = "ff.sanction_date >= ?"; $year_summary_types .= "s"; $year_summary_values[] = $from_date . " 00:00:00"; }
+if (!empty($to_date)) { $year_summary_clauses[] = "ff.sanction_date <= ?"; $year_summary_types .= "s"; $year_summary_values[] = $to_date . " 23:59:59"; }
+if (!empty($facility_filter)) { $year_summary_clauses[] = "ff.facility_type LIKE CONCAT('%', ?, '%')"; $year_summary_types .= "s"; $year_summary_values[] = $facility_filter; }
+$year_summary_where = " WHERE " . implode(" AND ", $year_summary_clauses);
+$yearsQueryActual = "SELECT COALESCE(YEAR(ff.sanction_date), 0) AS yr, COUNT(*) AS row_count, SUM(ff.amount) AS total
+                     FROM file_facilities ff
+                     JOIN office_files o ON ff.file_record_id = o.id" . $year_summary_where . " GROUP BY yr ORDER BY yr DESC";
+
+$yearsStmt = $conn->prepare($yearsQueryActual);
+if (!empty($year_summary_types)) {
+    $yearsStmt->bind_param($year_summary_types, ...$year_summary_values);
+}
 $yearsStmt->execute();
 $yearsRes = $yearsStmt->get_result();
 while ($r = $yearsRes->fetch_assoc()) {
@@ -128,37 +145,33 @@ while ($r = $yearsRes->fetch_assoc()) {
         'type_totals' => [],
     ];
 }
+$yearsStmt->close();
 krsort($available_years);
 
-$query = "SELECT ff.*, o.branch_code, o.branch_name, o.division, o.client, o.file_no
+// =========================================================================
+// 4. MAIN DE-DUPLICATED DUAL-USER QUERY (WITH LIMIT AND OFFSET)
+// =========================================================================
+$query = "SELECT ff.*, o.branch_code, o.branch_name, o.division, o.client, o.file_no,
+                 u1.full_name AS sanctioned_by_user,
+                 u2.full_name AS updated_by_user
           FROM file_facilities ff
           JOIN office_files o ON ff.file_record_id = o.id
-          WHERE o.is_deleted = 0
-            AND (? = '' OR ff.sanction_date >= ?)
-            AND (? = '' OR ff.sanction_date <= ?)
-            AND (? = '' OR ff.facility_type LIKE CONCAT('%', ?, '%'))";
+          LEFT JOIN users u1 ON ff.user_id = u1.id
+          LEFT JOIN users u2 ON ff.updated_by = u2.id" . $where_string;
 
-$query .= $yearCondition;
-$query .= "\n          ORDER BY ff.sanction_date DESC\n          LIMIT ?, ?";
+$query .= " ORDER BY ff.sanction_date DESC, ff.id DESC LIMIT ? OFFSET ?";
 
 $stmt = $conn->prepare($query);
 
-// dynamic bind for main query
-$main_types = 'ssssss';
-$main_values = [$from_date, $from_date, $to_date, $to_date, $facility_filter, $facility_filter];
-if ($yearParamValue !== null) { $main_types .= 'i'; $main_values[] = $yearParamValue; }
-$main_types .= 'ii';
-$main_values[] = $offset;
-$main_values[] = $per_page;
+// Pack parameter typing map dynamically with pagination limits safely
+$main_types = $base_types . "ii";
+$main_values = array_merge($base_values, [$per_page, $offset]);
 
-$refs = [];
-foreach ($main_values as $k => $v) $refs[$k] = &$main_values[$k];
-array_unshift($refs, $main_types);
-call_user_func_array([$stmt, 'bind_param'], $refs);
-
+$stmt->bind_param($main_types, ...$main_values);
 $stmt->execute();
 $result = $stmt->get_result();
 $rows = $result->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
 
 $total_all = 0;
 $type_totals = [];
@@ -170,7 +183,7 @@ foreach ($rows as $row) {
     $type = strtoupper(trim($row['facility_type'] ?? '')) ?: 'UNKNOWN';
     $type_totals[$type] = ($type_totals[$type] ?? 0) + $amount;
 
-    $year = !empty($row['sanction_date']) ? date('Y', strtotime($row['sanction_date'])) : 'Unknown';
+    $year = !empty($row['sanction_date']) && $row['sanction_date'] !== '0000-00-00' ? date('Y', strtotime($row['sanction_date'])) : 'Unknown';
     if (!isset($year_groups[$year])) {
         $year_groups[$year] = [
             'rows' => [],
@@ -334,14 +347,63 @@ if (isset($_GET['debug']) && $_GET['debug'] === '1') {
 
                         <?php if (!empty($g['rows'])): ?>
                             <?php foreach ($rowsByDate as $dateKey => $dateRows): ?>
-                                <?php $firstRef = htmlspecialchars($dateRows[0]['sanction_letter_ref_no'] ?? 'N/A'); ?>
-                                <div class="sanction-header d-flex justify-content-between align-items-center bg-light border p-3 mt-3 rounded-top shadow-sm">
-                                    <div class="fw-bold text-dark">
-                                        <i class="fas fa-calendar-check text-primary me-2"></i>
-                                        <span class="badge bg-primary text-white me-2">Ref: <?php echo $firstRef; ?></span>
-                                        <span class="text-muted">Sanction Date:</span> <?php echo htmlspecialchars($dateKey); ?>
-                                    </div>
-                                </div>
+    <?php 
+    // Parse individual sanction numbers safely from the first grouped array element
+    $firstRef = htmlspecialchars($dateRows[0]['sanction_letter_ref_no'] ?? 'N/A'); 
+    
+    // =========================================================================
+    // CORRECT FIX: Parse and declare meeting dates for this loop element group
+    // =========================================================================
+    $c_date_raw = $dateRows[0]['comm_meet_date'] ?? '';
+    if (!empty($c_date_raw) && $c_date_raw !== '0000-00-00' && $c_date_raw !== '1970-01-01' && strtotime($c_date_raw) > 0) {
+        $display_comm_date = date("d.m.Y", strtotime($c_date_raw));
+    } else {
+        $display_comm_date = 'N/A';
+    }
+
+    $b_date_raw = $dateRows[0]['board_meet_date'] ?? '';
+    if (!empty($b_date_raw) && $b_date_raw !== '0000-00-00' && $b_date_raw !== '1970-01-01' && strtotime($b_date_raw) > 0) {
+        $display_board_date = date("d.m.Y", strtotime($b_date_raw));
+    } else {
+        $display_board_date = 'N/A';
+    }
+    
+    // Fetch user profile fallback who created this record
+    $sanctioned_by_user = htmlspecialchars($dateRows[0]['sanctioned_by_user'] ?? 'System / Legacy');
+    ?>
+
+   <div class="sanction-header d-flex justify-content-between align-items-center bg-light border p-3 mt-4 rounded-top shadow-sm">
+    <div class="fw-bold text-dark">
+        <i class="fas fa-calendar-check text-primary me-2"></i>
+        <span class="badge bg-primary text-white me-2">Approval No: <?php echo htmlspecialchars($rows[0]['sanction_letter_ref_no'] ?? 'N/A'); ?></span>
+        <span class="text-muted">Sanction Date:</span> <?php echo htmlspecialchars($dateKey); ?>
+        
+        <div class="small mt-1 fw-normal text-muted d-flex align-items-center gap-3">
+            <div>
+                <i class="fas fa-user-check me-1 text-success" style="font-size: 0.8rem;"></i> 
+                Sanctioned By: <strong class="text-dark"><?php echo htmlspecialchars($rows[0]['sanctioned_by_user'] ?? 'System / Legacy'); ?></strong>
+            </div>
+            
+            <?php if (!empty($rows[0]['updated_by_user'])): ?>
+                <div class="border-start ps-3">
+                    <i class="fas fa-user-edit me-1 text-warning" style="font-size: 0.8rem;"></i> 
+                    Updated By: <strong class="text-dark"><?php echo htmlspecialchars($rows[0]['updated_by_user']); ?></strong>
+                </div>
+            <?php endif; ?>
+        </div>
+    </div>
+    
+    <div class="text-end">
+        <div class="small">
+            <strong>Invest. Committee Meeting No &amp; (Date):</strong> <?php echo htmlspecialchars($rows[0]['comm_meet_no'] ?: 'N/A'); ?>
+            <span class="text-muted">(<?php echo $display_comm_date; ?>)</span>
+        </div>
+        <div class="small">
+            <strong>Board Meeting No &amp; (Date):</strong> <?php echo htmlspecialchars($rows[0]['board_meet_no'] ?: 'N/A'); ?>
+            <span class="text-muted">(<?php echo $display_board_date; ?>)</span>
+        </div>
+    </div>
+</div>
 
                                 <div class="table-responsive">
                                     <table class="table table-bordered table-hover table-fixed align-middle mb-3">
@@ -354,7 +416,7 @@ if (isset($_GET['debug']) && $_GET['debug'] === '1') {
                                                 <th class="text-end">Amount</th>
                                                 <th>Comm. Meet</th>
                                                 <th>Board Meet</th>
-                                                <th>Record</th>
+                                                <th>Details</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -367,7 +429,7 @@ if (isset($_GET['debug']) && $_GET['debug'] === '1') {
                                                     <td class="text-end"><?php echo number_format($row['amount'] ?? 0, 2); ?></td>
                                                     <td><?php echo htmlspecialchars($row['comm_meet_no'] ?? 'N/A'); ?><?php echo !empty($row['comm_meet_date']) ? '<br><small class="text-muted">' . date('d-m-Y', strtotime($row['comm_meet_date'])) . '</small>' : ''; ?></td>
                                                     <td><?php echo htmlspecialchars($row['board_meet_no'] ?? 'N/A'); ?><?php echo !empty($row['board_meet_date']) ? '<br><small class="text-muted">' . date('d-m-Y', strtotime($row['board_meet_date'])) . '</small>' : ''; ?></td>
-                                                    <td><a href="view_details.php?id=<?php echo intval($row['file_record_id']); ?>" class="btn btn-sm btn-outline-primary">View</a></td>
+                                                    <td><a href="more_details.php?id=<?php echo intval($row['file_record_id']); ?>" class="btn btn-sm btn-outline-primary">Details</a></td>
                                                 </tr>
                                             <?php endforeach; ?>
                                             <tr class="table-secondary">

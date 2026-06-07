@@ -99,39 +99,77 @@ foreach ($stages as $key => $status_value) {
 $total_processing = $counts['proposal_received'] + $counts['in_prep'] + $counts['office_note'] + $counts['committee_memo'] + $counts['committee_minutes'] + $counts['board_memo'] + $counts['board_minutes'];
 
 // 3. Relational Queue Loader pulling matching table lists
+// 3. Relational Queue Loader pulling matching table lists
 $matching_proposals = [];
 if (!empty($active_filter)) {
-    $list_sql = "SELECT 
-                    pa.assigned_date AS assigned_time, 
-                    u.full_name AS officer_name, 
-                    pa.proposal_status AS current_stage,
-                    pa.proposal_type AS proposal_type,
-                    pa.proposal_amount AS proposal_amount,
-                    pa.remarks AS assignment_remarks,
-                    o.client AS client_name, 
-                    o.branch_name AS branch, 
-                    o.file_no AS file_number,
-                    o.id AS file_rec_id,
-                    ff.sanction_date,
-                    ff.facility_type,
-                    ff.sanction_letter_ref_no
-                 FROM proposal_assignments pa
-                 JOIN office_files o ON pa.file_id = o.id
-                 LEFT JOIN users u ON pa.user_id = u.id
-                 LEFT JOIN file_facilities ff ON o.id = ff.file_record_id
-                 WHERE pa.proposal_status = ? AND o.is_deleted = 0";
-                 
-    if (!empty($date_condition)) {
-        $list_sql .= $date_condition;
-    } elseif ($active_filter === 'Approval/Sanction') {
-        $list_sql .= " AND ff.sanction_date BETWEEN DATE_SUB(NOW(), INTERVAL 1 MONTH) AND NOW()";
+    if ($active_filter === 'Approval/Sanction') {
+        // =========================================================================
+        // FIXED SANCTION DE-DUPLICATION QUERY ENGINE
+        // =========================================================================
+        $list_sql = "SELECT 
+                        pa.assigned_date AS assigned_time, 
+                        u.full_name AS officer_name, 
+                        pa.proposal_status AS current_stage,
+                        ff.facility_type AS proposal_type,      -- Pull unique facility type
+                        ff.amount AS proposal_amount,           -- Pull individual actual facility amount
+                        pa.remarks AS assignment_remarks,
+                        o.client AS client_name, 
+                        o.branch_name AS branch, 
+                        o.file_no AS file_number,
+                        o.id AS file_rec_id,
+                        ff.sanction_date,
+                        ff.sanction_letter_ref_no
+                     FROM file_facilities ff
+                     JOIN office_files o ON ff.file_record_id = o.id
+                     LEFT JOIN proposal_assignments pa ON o.id = pa.file_id AND pa.proposal_status = 'Approval/Sanction'
+                     LEFT JOIN users u ON pa.user_id = u.id
+                     WHERE o.is_deleted = 0";
+                     
+        if (!empty($date_condition)) {
+            $list_sql .= $date_condition;
+        } else {
+            $list_sql .= " AND ff.sanction_date BETWEEN DATE_SUB(NOW(), INTERVAL 1 MONTH) AND NOW()";
+        }
+        
+        // Group specifically by the unique facility item primary key id to prevent cross-joins
+        $list_sql .= "GROUP BY ff.id ORDER BY ff.sanction_date DESC, ff.id DESC";
+
+    } else {
+        // =========================================================================
+        // STANDARD OPERATIONAL PIPELINE PIPELINE (FOR NON-SANCTIONED STAGES)
+        // =========================================================================
+        $list_sql = "SELECT 
+                        pa.assigned_date AS assigned_time, 
+                        u.full_name AS officer_name, 
+                        pa.proposal_status AS current_stage,
+                        pa.proposal_type AS proposal_type,
+                        pa.proposal_amount AS proposal_amount,
+                        pa.remarks AS assignment_remarks,
+                        o.client AS client_name, 
+                        o.branch_name AS branch, 
+                        o.file_no AS file_number,
+                        o.id AS file_rec_id,
+                        NULL AS sanction_date,
+                        NULL AS facility_type,
+                        NULL AS sanction_letter_ref_no
+                     FROM proposal_assignments pa
+                     JOIN office_files o ON pa.file_id = o.id
+                     LEFT JOIN users u ON pa.user_id = u.id
+                     WHERE pa.proposal_status = ? AND o.is_deleted = 0";
+                     
+        $list_sql .= " GROUP BY pa.id ORDER BY pa.assigned_date DESC";
     }
-    
-    $list_sql .= " ORDER BY pa.assigned_date DESC";
                  
     $list_stmt = $conn->prepare($list_sql);
-    $list_stmt->bind_param('s', $active_filter);
-    $list_stmt->execute();
+    
+    // Bind parameters conditionally based on chosen view selection path
+    if ($active_filter === 'Approval/Sanction') {
+        $list_stmt->execute();
+    } else {
+        $list_stmt->bind_param('s', $active_filter);
+        $list_stmt->execute();
+    }
+    
     $matching_proposals = $list_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     $list_stmt->close(); 
 }
@@ -165,7 +203,7 @@ $unassigned_res = $conn->query("
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Management Dashboard Matrix</title>
+    <title>Management Dashboard</title>
     <link rel="stylesheet" href="assets/css/bootstrap.min.css">
     <link rel="stylesheet" href="assets/css/all.min.css">
     <link rel="stylesheet" href="assets/css/style.css">
@@ -286,7 +324,7 @@ $unassigned_res = $conn->query("
                     </div>
                     <div>
                         <h4 class="fw-bold text-dark mb-0" style="letter-spacing: -0.5px;">File Management Dashboard</h4>
-                        <p class="text-muted small mb-0 mt-0">Active Operator: <span class="text-primary fw-semibold"><?php echo htmlspecialchars(ucwords(strtolower($display_name))); ?></span></p>
+                        <p class="text-muted small mb-0 mt-0">আসসালামু আলাইকুম: <span class="text-primary fw-semibold"><?php echo htmlspecialchars(ucwords(strtolower($display_name))); ?></span></p>
                     </div>
                 </div>
             </div>
@@ -295,15 +333,16 @@ $unassigned_res = $conn->query("
                     <a href="search.php" class="btn btn-outline-primary toolbar-btn">
                         <i class="fas fa-search"></i> <span>Search File</span>
                     </a>
+                    <a href="proposal_assignments.php" class="btn btn-info toolbar-btn text-dark">
+                        <i class="fas fa-file-signature"></i> <span>Assign File</span>
+                    </a>
                     <a href="cabinet_ledger.php" class="btn btn-outline-purple toolbar-btn">
                         <i class="fas fa-warehouse"></i> <span>Cabinet View</span>
                     </a>
                     <a href="add_record.php" class="btn btn-success toolbar-btn text-white">
                         <i class="fas fa-folder-plus"></i> <span>New File Record</span>
                     </a>
-                    <a href="proposal_assignments.php" class="btn btn-warning toolbar-btn text-dark">
-                        <i class="fas fa-file-signature"></i> <span>Assign File</span>
-                    </a>
+                    
                     <a href="sanction_report.php" class="btn btn-info toolbar-btn text-white">
                         <i class="fas fa-chart-line"></i> <span>Reports</span>
                     </a>
@@ -590,13 +629,19 @@ $unassigned_res = $conn->query("
                                     <?php endif; ?>
                                 </td>
                                 
-                                <td>
-                                    <div class="fw-bold text-secondary"><?= htmlspecialchars($row['facility_type'] ?: 'N/A') ?></div>
-                                    <div class="text-muted font-monospace" style="font-size: 11px;">
-                                        Ref: <?= htmlspecialchars($row['sanction_letter_ref_no'] ?: 'N/A') ?><br>
-                                        Date: <?= $row['sanction_date'] ? date('d-M-Y', strtotime($row['sanction_date'])) : 'N/A' ?>
-                                    </div>
-                                </td>
+                              <td>
+    <div class="fw-bold text-secondary">
+        <?php 
+        // SAFELY LOOKUP BOTH POTENTIAL STRUCTURAL KEYS
+        $display_facility = $row['proposal_type'] ?? $row['facility_type'] ?? 'N/A';
+        echo htmlspecialchars($display_facility ?: 'N/A'); 
+        ?>
+    </div>
+    <div class="text-muted font-monospace" style="font-size: 11px;">
+        Ref: <?= htmlspecialchars($row['sanction_letter_ref_no'] ?? 'N/A') ?><br>
+        Date: <?= (!empty($row['sanction_date']) && $row['sanction_date'] !== '0000-00-00') ? date('d-M-Y', strtotime($row['sanction_date'])) : 'N/A' ?>
+    </div>
+</td>
 
                                 <td>
                                     <div class="d-flex align-items-center">

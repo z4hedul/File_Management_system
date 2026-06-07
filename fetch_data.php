@@ -102,7 +102,7 @@ while ($row = $empRecords->fetch_assoc()) {
     $actions_html .= "<a href='transfer_file.php?id=$file_id' class='btn btn-sm btn-outline-primary' title='Transfer Division'><i class='fas fa-exchange-alt'></i></a>";
     $actions_html .= "<a href='view_details.php?id=$file_id' class='btn btn-sm $viewBtnClass' title='$viewTitle'><i class='fas fa-eye'></i></a>";
     $actions_html .= "<a href='more_details.php?id=$file_id' class='btn btn-sm btn-success' title='More Details'>info</a>"; 
-    $actions_html .= "<a href='assign_proposal.php?id=" . intval($row['id']) . "' class='btn btn-sm btn-warning'><i class='fas fa-user-plus'></i> Assign</a>";
+    $actions_html .= "<a href='assign_proposal.php?id=" . intval($row['id']) . "' class='btn btn-sm btn-info'><i class='fas fa-user-plus'></i> Assign</a>";
     if ($isAdmin) {
         $actions_html .= "<a href='delete.php?id=$file_id' class='btn btn-sm btn-danger' onclick='return confirm(\"Are you sure?\")'><i class='fas fa-trash'></i></a>";
     }
@@ -117,11 +117,11 @@ while ($row = $empRecords->fetch_assoc()) {
     $div_badge_class = ($row['division'] === 'Investment') ? 'bg-success' : (($row['division'] === 'SME') ? 'bg-warning text-dark' : 'bg-info text-dark');
     $division_html = '<span class="badge ' . $div_badge_class . ' fw-bold px-2 py-1">' . htmlspecialchars($row['division'] ?? '') . '</span>';
 
-    $cabinet_html = '<span class="badge bg-primary text-white cabinet-badge shadow-sm"><i class="fas fa-warehouse me-1"></i>' . htmlspecialchars($row['cabinet_name'] ?? '') . '</span>';
+    $cabinet_html = '<span class="badge bg-info text-white cabinet-badge shadow-sm">' . htmlspecialchars($row['cabinet_name'] ?? '') . '</span>';
     
-    $shelf_html = '<span class="badge bg-secondary-subtle text-dark border shelf-badge"><i class="fas fa-layer-group me-1 text-secondary"></i>' . htmlspecialchars($row['shelf_name'] ?? '') . '</span>';
+    $shelf_html = '<span class="badge bg-primary text-white border shelf-badge">' . htmlspecialchars($row['shelf_name'] ?? '') . '</span>';
     
-    $file_no_html = '' . htmlspecialchars($row['file_no'] ?? '');
+    $file_no_html = '<span class="badge text-bg-secondary">' . htmlspecialchars($row['file_no'] ?? '');
 
     $remarks_html = !empty($row['remarks']) ? '<small class="text-muted d-block text-truncate font-monospace" style="max-width: 250px; font-size:0.75rem;"><strong>Note:</strong> '.htmlspecialchars($row['remarks']).'</small>' : '';
 

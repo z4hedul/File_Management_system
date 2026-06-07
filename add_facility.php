@@ -5,8 +5,9 @@ include 'header.php';
 if (!isset($_SESSION['loggedin'])) {
     header('Location: login.php');
     exit;
+    
 }
-
+$session_user_id = $_SESSION['id'] ?? $_SESSION['user_id'] ?? null;
 // ================= FLEXIBLE PARAMETER FALLBACK DETECTION =================
 if (isset($_GET['file_id'])) {
     $id = intval($_GET['file_id']);
@@ -60,17 +61,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     $type = $custom_type;
                 }
                 
-                $sql = "INSERT INTO file_facilities 
-                        (file_record_id, facility_type, amount, sanction_date, sanction_letter_ref_no, comm_meet_no, comm_meet_date, board_meet_no, board_meet_date) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
-                $f_stmt = $conn->prepare($sql);
-                $f_stmt->bind_param("isdssssss", $id, $type, $amt, $f_date, $s_ref, $c_no, $c_date, $b_no, $b_date);
-                $f_stmt->execute();
+                $ins_stmt = $conn->prepare("INSERT INTO file_facilities (file_record_id, user_id, facility_type, amount, sanction_date, sanction_letter_ref_no, comm_meet_no, comm_meet_date, board_meet_no, board_meet_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $ins_stmt->bind_param("iissssssss", $id, $session_user_id, $type, $amt, $f_date, $s_ref, $c_no, $c_date, $b_no, $b_date);
+                $ins_stmt->execute();
                 
                 if ($last_facility_id === null) {
                     $last_facility_id = $conn->insert_id;
                 }
-                $f_stmt->close();
+                $ins_stmt->close();
             }
         }
     }

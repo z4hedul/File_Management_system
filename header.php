@@ -83,12 +83,11 @@ $isAdmin = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin');
             <?php endif; ?>
 
             <span class="text-white me-3 small border-end pe-3 d-none d-sm-inline">
-                <i class="fas fa-user-circle me-1"></i> 
+                <i class="fas fa-user-circle me-1"></i><strong class="text-warning"> WELCOME </strong> 
                 <span class="opacity-75"><?php echo strtoupper(htmlspecialchars($_SESSION['role'])); ?>:</span> 
                 <strong class="text-warning"><?php echo strtoupper(htmlspecialchars($_SESSION['username'])); ?></strong>
             </span>
-
-            <a href="logout.php" class="btn btn-sm btn-danger shadow-sm fw-bold" style="font-size: 0.75rem;">
+                <a href="logout.php" class="btn btn-sm btn-danger shadow-sm fw-bold" style="font-size: 0.75rem;">
                 <i class="fas fa-sign-out-alt me-1"></i> LOGOUT
             </a>
         </div>
