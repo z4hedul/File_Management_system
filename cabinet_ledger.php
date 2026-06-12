@@ -69,7 +69,7 @@ if ($selected_cabinet !== '' || $selected_division !== '') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cabinet & Division Inventory Ledger</title>
+    <title>Cabinet & Division Ledger</title>
     <link rel="stylesheet" href="assets/css/bootstrap.min.css">
     <link rel="stylesheet" href="assets/css/all.min.css">
     <link rel="stylesheet" href="assets/css/dataTables.bootstrap5.min.css">
@@ -83,8 +83,8 @@ if ($selected_cabinet !== '' || $selected_division !== '') {
 
     <div class="d-flex justify-content-between align-items-center mb-4 bg-white p-3 rounded-3 shadow-sm border-0">
         <div>
-            <h3 class="fw-bold text-dark mb-0"><i class="fas fa-warehouse text-primary me-2"></i>Inventory Ledger Control Center</h3>
-            <p class="text-muted small mb-0">Select filters and click "Filter" to retrieve system filing ledger records.</p>
+            <h3 class="fw-bold text-dark mb-0"><i class="fas fa-warehouse text-primary me-2"></i>Cabinet Record Center</h3>
+            <p class="text-muted small mb-0">Select filters and click "Filter" to retrieve system filing cabinet records.</p>
         </div>
         <div class="d-flex gap-2">
             <a href="index.php" class="btn btn-outline-dark"><i class="fas fa-chart-line me-1"></i> Dashboard</a>
@@ -96,7 +96,7 @@ if ($selected_cabinet !== '' || $selected_division !== '') {
         <div class="card-body p-3">
             <form method="GET" action="cabinet_ledger.php" id="filterForm" class="row g-3 align-items-end">
                 <div class="col-md-5">
-                    <label for="cabinet_no_select" class="form-label small fw-bold text-muted text-uppercase mb-1"><i class="fas fa-box me-1 text-primary"></i>Storage Cabinet Selection</label>
+                    <label for="cabinet_no_select" class="form-label small fw-bold text-muted text-uppercase mb-1"><i class="fas fa-box me-1 text-primary"></i>Cabinet Selection</label>
                     <select name="cabinet_no" id="cabinet_no_select" class="form-select border-primary-subtle">
                         <option value="">-- All Cabinets --</option>
                         <?php foreach ($cabinet_options as $cab_no): ?>
@@ -108,7 +108,7 @@ if ($selected_cabinet !== '' || $selected_division !== '') {
                 </div>
                 
                 <div class="col-md-5">
-                    <label for="division_select" class="form-label small fw-bold text-muted text-uppercase mb-1"><i class="fas fa-layer-group me-1 text-success"></i>Corporate Division Filter</label>
+                    <label for="division_select" class="form-label small fw-bold text-muted text-uppercase mb-1"><i class="fas fa-layer-group me-1 text-success"></i>Division Selection</label>
                     <select name="division" id="division_select" class="form-select border-primary-subtle">
                         <option value="">-- All Divisions --</option>
                         <?php foreach ($division_options as $div_name): ?>
@@ -138,7 +138,7 @@ if ($selected_cabinet !== '' || $selected_division !== '') {
                             <th class="text-center" style="width: 12%;">Cabinet No</th>
                             <th class="text-center" style="width: 12%;">Shelf No</th>
                             <th class="text-center" style="width: 12%;">File No</th>
-                            <th style="width: 28%;">Client Profile Name</th>
+                            <th style="width: 28%;">Client Name</th>
                             <th style="width: 24%;">Branch / Zone</th>
                             <th style="width: 12%;">Division</th>
                         </tr>

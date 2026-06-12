@@ -12,24 +12,41 @@ $msg = "";
 
 // 2. HANDLE DELETE ACTION
 if (isset($_GET['delete_id'])) {
-    $del_id = intval($_GET['delete_id']);
-    $current_admin_id = $_SESSION['user_id'] ?? null; 
+    $delete_id = intval($_GET['delete_id']);
 
-    if ($current_admin_id && $del_id == $current_admin_id) {
-        $msg = "<div class='alert alert-warning alert-dismissible fade show shadow-sm' role='alert'>
-                    <i class='fas fa-exclamation-triangle me-1'></i> You cannot delete your own admin account while logged in.
-                    <button type='button' class='btn-close' data-bs-dismiss='alert' aria-label='Close'></button>
-                </div>";
-    } else {
-        $stmt = $conn->prepare("DELETE FROM users WHERE id = ?");
-        $stmt->bind_param("i", $del_id);
-        if ($stmt->execute()) {
-            $msg = "<div class='alert alert-success alert-dismissible fade show shadow-sm' role='alert'>
-                        <i class='fas fa-check-circle me-1'></i> User account successfully deleted.
-                        <button type='button' class='btn-close' data-bs-dismiss='alert' aria-label='Close'></button>
-                    </div>";
-        }
-        $stmt->close();
+    // Initialize database transaction boundary
+    $conn->begin_transaction();
+
+    try {
+        // 1. STEP ONE: If this user is a team leader, clear out their group leadership link
+        $clear_leader_stmt = $conn->prepare("UPDATE user_groups SET leader_id = NULL WHERE leader_id = ?");
+        $clear_leader_stmt->bind_param("i", $delete_id);
+        $clear_leader_stmt->execute();
+        $clear_leader_stmt->close();
+
+        // 2. STEP TWO: Clear out this user's membership to clear table dependencies
+        $clear_member_stmt = $conn->prepare("UPDATE users SET group_id = NULL WHERE id = ?");
+        $clear_member_stmt->bind_param("i", $delete_id);
+        $clear_member_stmt->execute();
+        $clear_member_stmt->close();
+
+        // 3. STEP THREE: Now it is fully safe to delete the user record permanently
+        $delete_user_stmt = $conn->prepare("DELETE FROM users WHERE id = ?");
+        $delete_user_stmt->bind_param("i", $delete_id);
+        $delete_user_stmt->execute();
+        $delete_user_stmt->close();
+
+        // Commit transaction changes to disk
+        $conn->commit();
+        
+        header("Location: manage_users.php?status=deleted");
+        exit;
+
+    } catch (mysqli_sql_exception $e) {
+        // Reverse changes automatically if anything fails
+        $conn->rollback();
+        echo "<script>alert('Error performing safe deletion pipeline: " . addslashes($e->getMessage()) . "'); window.location.href='manage_users.php';</script>";
+        exit;
     }
 }
 

@@ -5,11 +5,6 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 include 'db.php';
 
-if (!isset($_SESSION['loggedin'])) {
-    header("Location: login.php");
-    exit;
-}
-
 $isAdmin = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin');
 ?>
 <!DOCTYPE html>
@@ -25,72 +20,193 @@ $isAdmin = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin');
     <link rel="stylesheet" href="style/style.css">
     
     <style>
-        /* CRITICAL: Spacing fixes for Fixed elements */
+        /* UNIFIED GLOBAL BODY SETTINGS */
         body {
-            padding-top: 85px;    /* Prevents main content from slipping under top navbar */
-            padding-bottom: 160px; /* Prevents main content from hiding behind bottom footer */
-            background-color: #f8f9fa;
+            padding-top: 85px !important;    /* Prevents main content from slipping under top navbar */
+            padding-bottom: 160px !important; /* Prevents main content from hiding behind bottom footer */
+            background-color: #f4f7f6 !important; /* Soft tint matching corporate background styling */
         }
         
-        .navbar.fixed-top {
-            z-index: 1030;
+        /* FSIBL BRAND NAVIGATION INTERFACE */
+        .fsibl-navbar {
+            background: linear-gradient(135deg, #006a4e 0%, #00523c 100%) !important; /* FSIBL Signature Deep Green Gradient */
+            box-shadow: 0 4px 12px rgba(0, 106, 78, 0.15) !important;
+            border-bottom: 3px solid #ffc72c !important; /* FSIBL Accent Gold Horizon Line */
+            padding: 0.6rem 1.5rem !important;
         }
 
-        /* Dashboard Styles */
-        .dashboard-card {
-            border: none;
-            border-radius: 12px;
-            transition: all 0.3s ease;
-            background: #fff;
+        .fsibl-brand-title {
+            font-size: 1.15rem;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            color: #ffffff !important;
+            text-transform: uppercase;
         }
-        .dashboard-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 20px rgba(0,0,0,0.08) !important;
+
+        .fsibl-brand-subtitle {
+            font-size: 0.65rem;
+            font-weight: 600;
+            color: #ffc72c !important; /* Accent Gold text descriptor */
+            letter-spacing: 1px;
+            display: block;
+            text-transform: uppercase;
+            margin-top: -2px;
         }
-        .icon-shape {
-            width: 48px;
-            height: 48px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 10px;
+
+        /* Nav Link Elements */
+        .fsibl-navbar .nav-link {
+            color: rgba(255, 255, 255, 0.85) !important;
+            font-weight: 600;
+            font-size: 0.85rem;
+            letter-spacing: 0.3px;
+            padding: 0.5rem 1rem !important;
+            border-radius: 4px;
+            transition: all 0.25s ease-in-out;
+        }
+
+        .fsibl-navbar .nav-link:hover, 
+        .fsibl-navbar .nav-item.active .nav-link {
+            color: #ffffff !important;
+            background-color: rgba(255, 255, 255, 0.1) !important;
+        }
+
+        /* Welcome User Badge */
+        .fsibl-user-badge {
+            background-color: rgba(0, 0, 0, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 30px;
+            padding: 0.4rem 1.2rem;
+            font-size: 0.8rem;
+        }
+
+        .fsibl-user-badge .role-tag {
+            color: #ffc72c !important; /* Gold label for system role */
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+
+        /* Logout button style */
+        .fsibl-btn-logout {
+            background-color: #e0ae22 !important; /* Gold Base Button */
+            color: #ffffff !important; /* Contrast Green Font text */
+            font-weight: 700 !important;
+            font-size: 0.75rem !important;
+            border: none !important;
+            padding: 0.45rem 1rem !important;
+            border-radius: 20px !important;
+            transition: all 0.2s ease;
+        }
+
+        .fsibl-btn-logout:hover {
+            background-color: #e0ae22 !important;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        /* Utility Page Layout Wrapper Constraint */
+        .app-page-wrapper {
+            margin-top: 20px !important;
+            display: block;
+            position: relative;
+        }
+
+        @media (max-width: 991.98px) {
+            body { padding-top: 135px !important; }
+            .fsibl-navbar { padding: 0.5rem 1rem !important; }
         }
     </style>
 </head>
 <body>
 
-<nav class="navbar navbar-expand-lg navbar-dark shadow fixed-top" style="background-color: #2506d3; border-bottom: 3px solid #0ad8f3;">
-    <div class="container main-container">
-        <a class="navbar-brand d-flex align-items-center fw-bold" href="index.php">
-            <img src="images/fsib_logo.jpg" alt="FSIB Logo" class="me-3 rounded bg-white p-1" style="height: 40px; width: auto;">
-            <span style="letter-spacing: 0.5px; font-size: 1.1rem;">FILE MANAGEMENT SYSTEM</span>
+<nav class="navbar navbar-expand-lg navbar-dark fixed-top fsibl-navbar">
+    <div class="container-fluid">
+        <a class="navbar-brand d-flex align-items-center me-4" href="index.php">
+            <div class="me-2 text-center bg-white rounded-circle d-flex align-items-center justify-content-center" style="width: 38px; height: 38px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                <i class="fas fa-file-invoice text-success" style="font-size: 1.2rem; color: #006a4e !important;"></i>
+            </div>
+            <div>
+                <span class="fsibl-brand-title">FSIBL</span>
+                <span class="fsibl-brand-subtitle">File Management System</span>
+            </div>
         </a>
-        <div class="ms-auto d-flex align-items-center">
-            <?php if ($isAdmin): ?>
-                <a href="trash.php" class="nav-link px-3 position-relative text-white me-3" title="Recycle Bin">
-                    <i class="fas fa-trash-alt text-warning"></i>
-                    <?php
-                        $t_sql = "SELECT COUNT(*) as total FROM office_files WHERE is_deleted = 1";
-                        $t_res = $conn->query($t_sql);
-                        $t_count = ($t_res) ? $t_res->fetch_assoc()['total'] : 0;
-                        if($t_count > 0): 
-                    ?>
-                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.65rem; border: 1px solid white;">
-                            <?php echo $t_count; ?>
-                        </span>
-                    <?php endif; ?>
-                </a>
-            <?php endif; ?>
+        
+        <button class="navbar-brand-toggler navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#fsiblMainNavbar" aria-controls="fsiblMainNavbar" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon" style="font-size: 0.85rem;"></span>
+        </button>
 
-            <span class="text-white me-3 small border-end pe-3 d-none d-sm-inline">
-                <i class="fas fa-user-circle me-1"></i><strong class="text-warning"> WELCOME </strong> 
-                <span class="opacity-75"><?php echo strtoupper(htmlspecialchars($_SESSION['role'])); ?>:</span> 
-                <strong class="text-warning"><?php echo strtoupper(htmlspecialchars($_SESSION['username'])); ?></strong>
-            </span>
-                <a href="logout.php" class="btn btn-sm btn-danger shadow-sm fw-bold" style="font-size: 0.75rem;">
-                <i class="fas fa-sign-out-alt me-1"></i> LOGOUT
-            </a>
+        <div class="collapse navbar-collapse" id="fsiblMainNavbar">
+            <ul class="navbar-nav me-auto mb-2 mb-lg-0 gap-1">
+                <li class="nav-item">
+                    <a class="nav-link" href="index.php">
+                        <i class="fas fa-th-large me-1 small"></i> Dashboard
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="proposal_assignments.php">
+                        <i class="fas fa-tasks me-1 small"></i> Tasks & Assignments
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="sanction_report.php">
+                        <i class="fas fa-chart-line me-1 small text-warning"></i> Reports
+                    </a>
+                </li>
+            <li class="nav-item ms-lg-2 d-flex align-items-center">
+                <a class="nav-link" href="add_record.php">
+                     <i class="fas fa-folder-plus text-warning"></i> 
+                    <span>New File</span>
+                </a>
+                </li>
+            <li class="nav-item ms-lg-2 d-flex align-items-center">
+                <a class="nav-link" href="add_record.php">
+                     <i class="fas fa-warehouse"></i> 
+                    <span>Cabinet Ledger</span>
+                </a>
+                 </li>
+             <li class="nav-item ms-lg-2 d-flex align-items-center">
+                <a class="nav-link text-white rounded-pill px-3 py-1 shadow-sm d-inline-flex align-items-center gap-2" href="search.php" style="background-color: #006a4e; font-size: 13px; font-weight: 500; transition: all 0.2s ease;">
+                    <i class="fas fa-search text-warning small"></i> 
+                    <span>Search File</span>
+                </a>
+            </li>
+            </ul>
+
+            <div class="d-flex align-items-center flex-wrap gap-2">
+                <?php if ($isAdmin): ?>
+                    <a href="trash.php" class="nav-link px-3 position-relative text-white me-2" title="Recycle Bin" style="background-color: rgba(255,255,255,0.08); border-radius: 50%; width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center;">
+                        <i class="fas fa-trash-alt text-warning"></i>
+                        <?php
+                            $t_sql = "SELECT COUNT(*) as total FROM office_files WHERE is_deleted = 1";
+                            $t_res = $conn->query($t_sql);
+                            $t_count = ($t_res) ? $t_res->fetch_assoc()['total'] : 0;
+                            if($t_count > 0): 
+                        ?>
+                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger shadow-sm" style="font-size: 0.6rem; border: 1px solid #006a4e; padding: 0.25em 0.4em;">
+                                <?php echo $t_count; ?>
+                            </span>
+                        <?php endif; ?>
+                    </a>
+                <?php endif; ?>
+
+                <div class="d-inline-flex align-items-center gap-2 bg-black bg-opacity-25 border border-white border-opacity-10 rounded-pill p-1 pe-3">
+                    <div class="text-white small ps-3 py-1 d-none d-sm-inline-block">
+                        <i class="far fa-user-circle me-1 opacity-75"></i> 
+                        <span class="opacity-75">Welcome</span>
+                        <span class="role-tag" style="color: #ffc72c; font-weight: 700; letter-spacing: 0.5px;"><?php echo strtoupper(htmlspecialchars($_SESSION['role'])); ?></span>: 
+                        <strong class="text-white"><?php echo strtoupper(htmlspecialchars($_SESSION['username'])); ?></strong>
+                    </div>
+
+                    <a href="change_password.php" class="btn p-0 text-white opacity-75 opacity-100-hover" title="Change Password" style="width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background-color: rgba(255,255,255,0.15);">
+                        <i class="fas fa-key" style="font-size: 11px; color: #ffc72c;"></i>
+                    </a>
+                </div>
+
+                <a href="logout.php" class="btn fsibl-btn-logout d-inline-flex align-items-center gap-1 shadow-sm ms-1">
+                    <i class="fas fa-sign-out-alt"></i> <span>LOGOUT</span>
+                </a>
+            </div>
         </div>
     </div>
 </nav>
-<br><br>
+<br>
+<div class="w-100 mb-2"></div>

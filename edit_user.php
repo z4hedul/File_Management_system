@@ -12,8 +12,16 @@ if (!$id) { header("location: manage_users.php"); exit; }
 
 $message = "";
 
-// 1. FETCH EXPANDED USER DATA
-$stmt = $conn->prepare("SELECT username, role, full_name, designation, employee_id FROM users WHERE id = ?");
+// Pull structural operating groups for user assignment
+$active_groups = $conn->query("
+    SELECT g.id, g.group_name, u.full_name AS leader_name 
+    FROM user_groups g
+    LEFT JOIN users u ON g.leader_id = u.id 
+    ORDER BY g.group_name ASC
+");
+
+// 1. FETCH EXPANDED USER DATA (Added group_id mapping field)
+$stmt = $conn->prepare("SELECT username, role, full_name, designation, division, employee_id, group_id FROM users WHERE id = ?");
 $stmt->bind_param("i", $id);
 $stmt->execute();
 $user = $stmt->get_result()->fetch_assoc();
@@ -26,32 +34,26 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $new_role        = $_POST['role'];
     $new_full_name   = trim($_POST['full_name']);
     $new_designation = trim($_POST['designation']);
+    $new_division    = trim($_POST['division']);
     $new_emp_id      = trim($_POST['employee_id']);
     $new_pass        = $_POST['password'];
+    
+    // Safely structure group data entry mapping (Converts empty choice string to explicit SQL NULL)
+   $new_group_id = !empty($_POST['group_id']) ? intval($_POST['group_id']) : null;
 
-    // Conditional Execution: Update parameters based on password field status
-    if (!empty($new_pass)) {
-        $hashed = password_hash($new_pass, PASSWORD_DEFAULT);
-        $upd = $conn->prepare("UPDATE users SET username = ?, password = ?, role = ?, full_name = ?, designation = ?, employee_id = ? WHERE id = ?");
-        $upd->bind_param("ssssssi", $new_user, $hashed, $new_role, $new_full_name, $new_designation, $new_emp_id, $id);
-    } else {
-        $upd = $conn->prepare("UPDATE users SET username = ?, role = ?, full_name = ?, designation = ?, employee_id = ? WHERE id = ?");
-        $upd->bind_param("sssssi", $new_user, $new_role, $new_full_name, $new_designation, $new_emp_id, $id);
-    }
+if (!empty($new_pass)) {
+    $hashed = password_hash($new_pass, PASSWORD_DEFAULT);
+    $upd = $conn->prepare("UPDATE users SET username = ?, password = ?, role = ?, full_name = ?, designation = ?, division = ?, employee_id = ?, group_id = ? WHERE id = ?");
+    $upd->bind_param("sssssssii", $new_user, $hashed, $new_role, $new_full_name, $new_designation, $new_division, $new_emp_id, $new_group_id, $id);
+} else {
+    $upd = $conn->prepare("UPDATE users SET username = ?, role = ?, full_name = ?, designation = ?, division = ?, employee_id = ?, group_id = ? WHERE id = ?");
+    $upd->bind_param("ssssssii", $new_user, $new_role, $new_full_name, $new_designation, $new_division, $new_emp_id, $new_group_id, $id);
+}
 
-    if ($upd->execute()) {
-        $message = "<div class='alert alert-success alert-dismissible fade show shadow-sm' role='alert'>
-                        <i class='fas fa-check-circle me-1'></i> User profile updated successfully!
-                        <button type='button' class='btn-close' data-bs-dismiss='alert' aria-label='Close'></button>
-                    </div>";
-        
-        // Refresh local runtime copy to map modifications instantly back onto HTML placeholders
-        $user['username']    = $new_user;
-        $user['role']        = $new_role;
-        $user['full_name']   = $new_full_name;
-        $user['designation'] = $new_designation;
-        $user['employee_id'] = $new_emp_id;
-    } else {
+if ($upd->execute()) {
+    // ... setup alert updates ...
+    $user['group_id'] = $new_group_id; // Update local runtime state array
+} else {
         $message = "<div class='alert alert-danger'><i class='fas fa-times-circle me-1'></i> Update failed: " . htmlspecialchars($conn->error) . "</div>";
     }
 }
@@ -60,9 +62,27 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <meta charset="UTF-8">
     <title>Edit User Profile</title>
-   <link rel="stylesheet" href="assets/css/bootstrap.min.css">
+    <link rel="stylesheet" href="assets/css/bootstrap.min.css">
     <link rel="stylesheet" href="assets/css/all.min.css">
+    
+    <style>
+        @media screen and (max-width: 1400px) {
+            body {
+                zoom: 90%;
+                -moz-transform: scale(0.9);
+                -moz-transform-origin: top center;
+            }
+            .g-3, .mb-3, .mb-4, .row {
+                margin-bottom: 0.6rem !important;
+                margin-top: 0.1rem !important;
+            }
+            .container {
+                padding: 0.75rem !important;
+            }
+        }
+    </style>
 </head>
 <body class="bg-light p-5">
 <div class="container bg-white p-4 shadow rounded" style="max-width: 600px;">
@@ -92,7 +112,29 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 <label class="fw-bold small text-muted">Designation / Title</label>
                 <input type="text" name="designation" class="form-control" value="<?= htmlspecialchars($user['designation'] ?? '') ?>" required>
             </div>
-        </div>
+            <div class="col-md-4">
+                <label class="fw-bold small text-muted">Division</label>
+                <select name="division" class="form-select" required>
+                    <option value="Investment" <?= $user['division'] == 'Investment' ? 'selected' : '' ?>>Investment</option>
+                    <option value="SME" <?= $user['division'] == 'SME' ? 'selected' : '' ?>>SME</option>
+                    <option value="IMRD" <?= $user['division'] == 'IMRD' ? 'selected' : '' ?>>IMRD</option>
+                </select>
+            </div>
+            
+          <div class="mb-3">
+    <label class="fw-bold small text-muted">Operating Group / Team Assignment</label>
+    <select name="group_id" class="form-select">
+        <option value="">Independent / No Assigned Group</option>
+        <?php if ($active_groups && $active_groups->num_rows > 0): ?>
+            <?php while($g_row = $active_groups->fetch_assoc()): ?>
+                <option value="<?= $g_row['id'] ?>" <?= ($user['group_id'] == $g_row['id']) ? 'selected' : '' ?>>
+                    <?= htmlspecialchars($g_row['group_name']) ?> 
+                    (Leader: <?= htmlspecialchars($g_row['leader_name'] ?? 'None') ?>)
+                </option>
+            <?php endwhile; ?>
+        <?php endif; ?>
+    </select>
+</div>
 
         <h5 class="text-secondary mt-4 mb-3 small fw-bold text-uppercase border-bottom pb-1"><i class="fas fa-shield-alt me-1"></i> System Access Settings</h5>
 
@@ -104,7 +146,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <div class="col-md-6">
                 <label class="fw-bold small text-muted">System Level Role</label>
                 <select name="role" class="form-select">
-                    <option value="user" <?= ($user['role'] == 'user' || $user['role'] == 'user') ? 'selected' : '' ?>>Standard User Account</option>
+                    <option value="user" <?= $user['role'] == 'user' ? 'selected' : '' ?>>Standard User Account</option>
                     <option value="admin" <?= $user['role'] == 'admin' ? 'selected' : '' ?>>Administrative Manager</option>
                 </select>
             </div>

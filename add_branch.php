@@ -53,18 +53,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <form method="POST" action="add_branch.php" autocomplete="off">
                 <div class="mb-3">
                     <label class="form-label fw-bold small text-muted text-uppercase">Branch Code</label>
-                    <input type="text" name="branch_code" class="form-control form-control-lg border-primary" placeholder="e.g., BR-0041" required>
+                    <input type="text" name="branch_code" class="form-control form-control-lg border-primary" placeholder="e.g., 0101" required>
                 </div>
                 <div class="mb-3">
                     <label class="form-label fw-bold small text-muted text-uppercase">Branch Name</label>
-                    <input type="text" name="branch_name" class="form-control form-control-lg border-primary" placeholder="e.g., Downtown Plaza Branch" required>
+                    <input type="text" name="branch_name" class="form-control form-control-lg border-primary" placeholder="e.g., Dilkusha Branch" required>
                 </div>
                 <div class="mb-4">
-                    <label class="form-label fw-bold small text-muted text-uppercase">Operational Zone Region</label>
-                    <input type="text" name="zone" class="form-control form-control-lg border-primary" placeholder="e.g., North Region Zone" required>
+                    <label class="form-label fw-bold small text-muted text-uppercase">Zone Name</label>
+                    <input type="text" name="zone" class="form-control form-control-lg border-primary" placeholder="e.g., Dhaka North Zone" required>
                 </div>
                 <div class="d-flex gap-2">
-                    <button type="submit" class="btn btn-primary btn-lg w-100 fw-bold shadow-sm"><i class="fas fa-save me-1"></i> Save Branch</button>
+                    <button type="submit" class="btn btn-primary btn-lg w-100 fw-bold shadow-sm"><i class="fas fa-save me-1"></i>Save Branch info</button>
                     <button type="button" class="btn btn-secondary btn-lg" onclick="window.close();">Close Window</button>
                 </div>
             </form>

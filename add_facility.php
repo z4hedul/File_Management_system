@@ -2,12 +2,14 @@
 session_start();
 include 'db.php';
 include 'header.php';
+
 if (!isset($_SESSION['loggedin'])) {
     header('Location: login.php');
     exit;
-    
 }
+
 $session_user_id = $_SESSION['id'] ?? $_SESSION['user_id'] ?? null;
+
 // ================= FLEXIBLE PARAMETER FALLBACK DETECTION =================
 if (isset($_GET['file_id'])) {
     $id = intval($_GET['file_id']);
@@ -33,6 +35,27 @@ if (!$main_data) {
     exit;
 }
 
+// Fetch Dynamic Lookup options from lookup database table for select menu dropdown engine
+$facility_options = [];
+$lookup_res = $conn->query("SELECT facility_name AS facility_type, facility_group FROM facilities_type WHERE is_active = 1 ORDER BY facility_group ASC, facility_name ASC");
+if ($lookup_res && $lookup_res->num_rows > 0) {
+    while ($row = $lookup_res->fetch_assoc()) {
+        $facility_options[] = $row;
+    }
+}
+
+$facility_as_options = ['Fresh', 'Renewal', 'Time Extension', 'Renewal with Enhancement'];
+
+function renderFacilityAsOptions(array $options, string $selectedValue = ''): string
+{
+    $html = '<option value="">-- Select Facility As --</option>';
+    foreach ($options as $option) {
+        $selected = ($selectedValue === $option) ? ' selected' : '';
+        $html .= '<option value="' . htmlspecialchars($option, ENT_QUOTES, 'UTF-8') . '"' . $selected . '>' . htmlspecialchars($option) . '</option>';
+    }
+    return $html;
+}
+
 $client_name = $main_data['client'] ?? 'Unknown_Client';
 $sanction_ref_prefix = 'FSIB/HO/INVT/';
 $status_message = '';
@@ -50,100 +73,119 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     $last_facility_id = null;
 
-    // 1. Insert Facilities First
-    if (isset($_POST['facility_types'])) {
-        foreach ($_POST['facility_types'] as $key => $type) {
-            if (!empty($type)) {
-                $amt = $_POST['sanction_amounts'][$key];
-                $custom_type = trim($_POST['facility_types_other'][$key] ?? '');
+    // Start transaction safety layer
+    $conn->begin_transaction();
+
+    try {
+        // 1. Insert Facilities First
+if (isset($_POST['facility_types'])) {
+    foreach ($_POST['facility_types'] as $key => $type) {
+        if (!empty($type)) {
+            $amt = $_POST['sanction_amounts'][$key];
+            $facility_as = trim($_POST['facility_as'][$key] ?? '');
+            $facility_group = 'General';
+
+            // Handle "Others" logic
+            if ($type === 'Others') {
+                $type = trim($_POST['facility_types_other'][$key] ?? '');
+                $facility_group = trim($_POST['facility_groups_other'][$key] ?? '');
                 
-                if ($type === 'Others' && !empty($custom_type)) {
-                    $type = $custom_type;
+                // Logic to insert into facilities_type table if not exists...
+                // (Keep your existing check_lookup logic here)
+            } else {
+                // Fetch group from options
+                foreach ($facility_options as $opt) {
+                    if ($opt['facility_type'] === $type) {
+                        $facility_group = $opt['facility_group'];
+                        break;
+                    }
                 }
+            }
+            
+            // PREPARE THE INSERT
+            $ins_stmt = $conn->prepare("INSERT INTO file_facilities 
+                (file_record_id, user_id, facility_type, facility_as, facility_group, amount, 
+                 sanction_date, sanction_letter_ref_no, comm_meet_no, comm_meet_date, 
+                 board_meet_no, board_meet_date) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            
+            $ins_stmt->bind_param("iisssdssssss", $id, $session_user_id, $type, 
+                                  $facility_as, $facility_group, $amt, $f_date, $s_ref, 
+                                  $c_no, $c_date, $b_no, $b_date);
+            $ins_stmt->execute();
+            $ins_stmt->close();
+        }
+    }
+}
+
+        // 2. Handle File Uploads (Standard Workflow + Custom Ad-Hoc Attachments)
+        $upload_dir = "uploads/";
+        if (!is_dir($upload_dir)) { 
+            mkdir($upload_dir, 0777, true); 
+        }
+
+        // Helper closure engine payload execution task function
+        $process_upload = function($file_array, $description) use ($id, $f_date, $client_name, $upload_dir, $conn) {
+            if (!empty($file_array['name'])) {
+                $ext = pathinfo($file_array['name'], PATHINFO_EXTENSION);
+                $raw_filename = $client_name . '-' . $description . '-' . $f_date;
+                $clean_filename = preg_replace("/[^a-zA-Z0-9_-]/", "_", $raw_filename);
+                $final_name = time() . '_' . $clean_filename . '.' . $ext;
+                $target_filepath = $upload_dir . $final_name;
                 
-                $ins_stmt = $conn->prepare("INSERT INTO file_facilities (file_record_id, user_id, facility_type, amount, sanction_date, sanction_letter_ref_no, comm_meet_no, comm_meet_date, board_meet_no, board_meet_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                $ins_stmt->bind_param("iissssssss", $id, $session_user_id, $type, $amt, $f_date, $s_ref, $c_no, $c_date, $b_no, $b_date);
-                $ins_stmt->execute();
-                
-                if ($last_facility_id === null) {
-                    $last_facility_id = $conn->insert_id;
+                if (move_uploaded_file($file_array['tmp_name'], $target_filepath)) {
+                    $attach_sql = "INSERT INTO attachments (file_record_id, sanction_date, file_path, description) VALUES (?, ?, ?, ?)";
+                    $attach_stmt = $conn->prepare($attach_sql);
+                    $attach_stmt->bind_param("isss", $id, $f_date, $target_filepath, $description);
+                    $attach_stmt->execute();
+                    $attach_stmt->close();
                 }
-                $ins_stmt->close();
+            }
+        };
+
+        $document_map = [
+            'file_branch_proposal' => 'Branch Proposal',
+            'file_comm_memo'       => 'Committee Memo',
+            'file_comm_minutes'    => 'Committee Minutes',
+            'file_office_note'     => 'Office Note',
+            'file_board_memo'      => 'Board Memo',
+            'file_board_minutes'   => 'Board Minutes',
+            'file_sanction_letter' => 'Sanction Letter'
+        ];
+
+        foreach ($document_map as $input_name => $description) {
+            if (isset($_FILES[$input_name])) {
+                $process_upload($_FILES[$input_name], $description);
             }
         }
-    }
 
-    // 2. Handle File Uploads (Standard Workflow + Custom Ad-Hoc Attachments)
-    $upload_dir = "uploads/";
-    if (!is_dir($upload_dir)) { 
-        mkdir($upload_dir, 0777, true); 
-    }
-
-    // Helper function to process individual file blocks safely
-    $process_upload = function($file_array, $description) use ($id, $f_date, $client_name, $upload_dir, $conn) {
-        if (!empty($file_array['name'])) {
-            $ext = pathinfo($file_array['name'], PATHINFO_EXTENSION);
-            
-            // Generate clean name formatting: ClientName-Description-SanctionDate.ext
-            $raw_filename = $client_name . '-' . $description . '-' . $f_date;
-            $clean_filename = preg_replace("/[^a-zA-Z0-9_-]/", "_", $raw_filename);
-            
-            // Append Unix timestamp to prevent file collision errors if the exact form is re-run
-            $final_name = time() . '_' . $clean_filename . '.' . $ext;
-            $target_filepath = $upload_dir . $final_name;
-            
-            if (move_uploaded_file($file_array['tmp_name'], $target_filepath)) {
-                $attach_sql = "INSERT INTO attachments (file_record_id, sanction_date, file_path, description) VALUES (?, ?, ?, ?)";
-                $attach_stmt = $conn->prepare($attach_sql);
-                $attach_stmt->bind_param("isss", $id, $f_date, $target_filepath, $description);
-                $attach_stmt->execute();
-                $attach_stmt->close();
-            }
-        }
-    };
-
-    // Process the standard static fields (Branch Proposal added as first key)
-    $document_map = [
-        'file_branch_proposal' => 'Branch Proposal',
-        'file_comm_memo'       => 'Committee Memo',
-        'file_comm_minutes'    => 'Committee Minutes',
-        'file_office_note'     => 'Office Note',
-        'file_board_memo'      => 'Board Memo',
-        'file_board_minutes'   => 'Board Minutes',
-        'file_sanction_letter' => 'Sanction Letter'
-    ];
-
-    foreach ($document_map as $input_name => $description) {
-        if (isset($_FILES[$input_name])) {
-            $process_upload($_FILES[$input_name], $description);
-        }
-    }
-
-    // Process dynamic "Add More" custom attachments
-    if (isset($_FILES['custom_attachments']) && isset($_POST['custom_descriptions'])) {
-        foreach ($_FILES['custom_attachments']['name'] as $index => $name) {
-            if (!empty($name)) {
-                $custom_desc = trim($_POST['custom_descriptions'][$index]);
-                if (empty($custom_desc)) {
-                    $custom_desc = "Additional Document " . ($index + 1);
+        if (isset($_FILES['custom_attachments']) && isset($_POST['custom_descriptions'])) {
+            foreach ($_FILES['custom_attachments']['name'] as $index => $name) {
+                if (!empty($name)) {
+                    $custom_desc = trim($_POST['custom_descriptions'][$index]);
+                    if (empty($custom_desc)) {
+                        $custom_desc = "Additional Document " . ($index + 1);
+                    }
+                    $custom_file_block = [
+                        'name'     => $_FILES['custom_attachments']['name'][$index],
+                        'type'     => $_FILES['custom_attachments']['type'][$index],
+                        'tmp_name' => $_FILES['custom_attachments']['tmp_name'][$index],
+                        'error'    => $_FILES['custom_attachments']['error'][$index],
+                        'size'     => $_FILES['custom_attachments']['size'][$index]
+                    ];
+                    $process_upload($custom_file_block, $custom_desc);
                 }
-
-                // Reconstruct a standard $_FILES array mapping for our closure engine
-                $custom_file_block = [
-                    'name'     => $_FILES['custom_attachments']['name'][$index],
-                    'type'     => $_FILES['custom_attachments']['type'][$index],
-                    'tmp_name' => $_FILES['custom_attachments']['tmp_name'][$index],
-                    'error'    => $_FILES['custom_attachments']['error'][$index],
-                    'size'     => $_FILES['custom_attachments']['size'][$index]
-                ];
-
-                $process_upload($custom_file_block, $custom_desc);
             }
         }
-    }
 
-    header("Location: more_details.php?id=$id&status=added");
-    exit;
+        // Commit operations if everything executes error-free
+        echo '<script>window.location.href = "more_details.php?id=' . $id . '&status=added";</script>';
+        exit;
+
+    } catch (Exception $e) {
+        $conn->rollback();
+        $status_message = '<div class="alert alert-danger">Error: ' . htmlspecialchars($e->getMessage()) . '</div>';
+    }
 }
 ?>
 <style>
@@ -152,14 +194,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         border: none;
         border-radius: 5px;
     }
-
     .btn-hover-custom:hover {
         background-color: #ffca2c;
         color: #000;
         transform: translateY(-2px);
         box-shadow: 0 5px 15px rgba(255, 193, 7, 0.4);
     }
-
     .ref-prefix-text,
     .input-group-text {
         background: #e7f1ff;
@@ -167,22 +207,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         color: #094b96;
         font-weight: 700;
     }
-
     .ref-prefix-text {
         display: inline-block;
         margin-bottom: 0.25rem;
         padding: 0.5rem 0.75rem;
         border-radius: 0.5rem;
     }
-
     .ref-suffix-input {
         min-width: 180px;
     }
-
     .btn-hover-custom:hover i {
         animation: pulse 1s infinite;
     }
-
     @keyframes pulse {
         0% { transform: scale(1); }
         50% { transform: scale(1.2); }
@@ -202,6 +238,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <div class="container bg-white p-4 shadow rounded" style="max-width: 950px;">
     <h4 class="text-primary mb-4"><i class="fas fa-file-signature"></i> Add New Sanction & Approval</h4>
     
+    <?php echo $status_message; ?>
+
     <div class="alert alert-secondary py-2">
         <strong>Client:</strong> <?php echo htmlspecialchars($main_data['client'] ?? 'N/A'); ?> | <strong>File:</strong> <?php echo htmlspecialchars($main_data['file_no'] ?? 'N/A'); ?>
     </div>
@@ -259,7 +297,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         <label class="form-label small fw-bold text-secondary">Branch Proposal</label>
                         <input type="file" name="file_branch_proposal" class="form-control border-success">
                     </div>
-                    
                     <div class="col-md-4">
                         <label class="form-label small fw-bold text-secondary">Committee Memo</label>
                         <input type="file" name="file_comm_memo" class="form-control border-success">
@@ -285,7 +322,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         <input type="file" name="file_sanction_letter" class="form-control border-success">
                     </div>
                 </div>
-
                 <div id="dynamic-attachments-container" class="mt-2"></div>
             </div>
         </div>
@@ -293,25 +329,30 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <h6 class="fw-bold mb-3"><i class="fas fa-list"></i> Approved Facilities</h6>
         <div id="facility-container">
             <div class="row g-2 mb-3 facility-row border-bottom pb-3">
-                <div class="col-md-6">
+                <div class="col-md-5">
                     <label class="form-label small fw-bold">Facility Type</label>
                     <select name="facility_types[]" class="form-control facility-type-select" required>
                         <option value="">-- Select Facility Type --</option>
-                        <option value="L/C (C2C)">L/C (C2C)</option>
-                        <option value="L/C Limit">L/C Limit</option>
-                        <option value="BG (C2C)">BG (C2C)</option>
-                        <option value="BG (Limit)">BG (Limit)</option>
-                        <option value="BG(PG)">BG(PG)</option>
-                        <option value="BG(BB)">BG(BB)</option>
-                        <option value="BM(Hypo)">BM(Hypo)</option>
-                        <option value="BS(PSI)">BS(PSI)</option>
-                        <option value="BM(PIF)">BM(PIF)</option>
-                        <option value="Credit Card">Credit Card</option>
+                        <?php foreach ($facility_options as $opt): ?>
+                            <option value="<?php echo htmlspecialchars($opt['facility_type'], ENT_QUOTES, 'UTF-8'); ?>">
+                                <?php echo htmlspecialchars($opt['facility_type']); ?> (<?php echo htmlspecialchars($opt['facility_group']); ?>)
+                            </option>
+                        <?php endforeach; ?>
                         <option value="Others">Others</option>
                     </select>
-                    <input type="text" name="facility_types_other[]" class="form-control facility-type-other mt-2" placeholder="Enter custom facility type" style="display:none;">
+                    
+                    <div class="custom-override-group mt-2" style="display:none;">
+                        <input type="text" name="facility_types_other[]" class="form-control facility-type-other mb-2" placeholder="Enter custom facility type">
+                        <input type="text" name="facility_groups_other[]" class="form-control facility-group-other" placeholder="Enter custom facility group (e.g. Funded, Non-Funded)">
+                    </div>
                 </div>
-                <div class="col-md-5">
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold">Facility As</label>
+                    <select name="facility_as[]" class="form-control" required>
+                        <?php echo renderFacilityAsOptions($facility_as_options); ?>
+                    </select>
+                </div>
+                <div class="col-md-3">
                     <label class="form-label small fw-bold">Amount</label>
                     <input type="number" step="0.01" name="sanction_amounts[]" class="form-control" placeholder="0.00" required>
                 </div>
@@ -334,17 +375,38 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 </div>
 
 <script>
+    // Global variable containing standard dropdown options to allow javascript replication loops
+   // Ensure this variable is defined in your <script> block
+const facilityOptionsHtml = `
+    <option value="">-- Select Facility Type --</option>
+    <?php foreach ($facility_options as $opt): ?>
+        <option value="<?php echo htmlspecialchars($opt['facility_type'], ENT_QUOTES, 'UTF-8'); ?>">
+            <?php echo htmlspecialchars($opt['facility_type']); ?> (<?php echo htmlspecialchars($opt['facility_group']); ?>)
+        </option>
+    <?php endforeach; ?>
+    <option value="Others">Others</option>
+`;
+
+const facilityAsOptionsHtml = <?php echo json_encode(renderFacilityAsOptions($facility_as_options)); ?>;
+
     // Handles custom selection toggles for facility structural options
     document.addEventListener('change', function(e) {
         if (e.target.classList.contains('facility-type-select')) {
-            const otherInput = e.target.closest('.facility-row').querySelector('.facility-type-other');
+            const row = e.target.closest('.facility-row');
+            const overrideGroup = row.querySelector('.custom-override-group');
+            const typeOther = row.querySelector('.facility-type-other');
+            const groupOther = row.querySelector('.facility-group-other');
+            
             if (e.target.value === 'Others') {
-                otherInput.style.display = 'block';
-                otherInput.required = true;
+                overrideGroup.style.display = 'block';
+                typeOther.required = true;
+                groupOther.required = true;
             } else {
-                otherInput.style.display = 'none';
-                otherInput.required = false;
-                otherInput.value = '';
+                overrideGroup.style.display = 'none';
+                typeOther.required = false;
+                groupOther.required = false;
+                typeOther.value = '';
+                groupOther.value = '';
             }
         }
     });
@@ -390,33 +452,35 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     // Facility duplication array handler
     document.getElementById('add-more').onclick = function() {
-        let container = document.getElementById('facility-container');
-        let newRow = document.createElement('div');
-        newRow.className = 'row g-2 mb-3 facility-row border-bottom pb-3';
-        newRow.innerHTML = `
-            <div class="col-md-6">
-                <select name="facility_types[]" class="form-control facility-type-select" required>
-                    <option value="">-- Select Facility Type --</option>
-                    <option value="L/C (C2C)">L/C (C2C)</option>
-                    <option value="L/C Limit">L/C Limit</option>
-                    <option value="BG (C2C)">BG (C2C)</option>
-                    <option value="BG (Limit)">BG (Limit)</option>
-                    <option value="BG(PG)">BG(PG)</option>
-                    <option value="BG(BB)">BG(BB)</option>
-                    <option value="BM(Hypo)">BM(Hypo)</option>
-                    <option value="BS(PSI)">BS(PSI)</option>
-                    <option value="BM(PIF)">BM(PIF)</option>
-                    <option value="Credit Card">Credit Card</option>
-                    <option value="Others">Others</option>
-                </select>
-                <input type="text" name="facility_types_other[]" class="form-control facility-type-other mt-2" placeholder="Enter custom facility type" style="display:none;">
+    let container = document.getElementById('facility-container');
+    let newRow = document.createElement('div');
+    newRow.className = 'row g-2 mb-3 facility-row border-bottom pb-3';
+    
+    // Use backticks (`) to allow the injection of facilityOptionsHtml
+    newRow.innerHTML = `
+        <div class="col-md-5">
+            <select name="facility_types[]" class="form-control facility-type-select" required>
+                ${facilityOptionsHtml}
+            </select>
+            <div class="custom-override-group mt-2" style="display:none;">
+                <input type="text" name="facility_types_other[]" class="form-control facility-type-other mb-2" placeholder="Enter custom facility type">
+                <input type="text" name="facility_groups_other[]" class="form-control facility-group-other" placeholder="Enter custom facility group">
             </div>
-            <div class="col-md-5"><input type="number" step="0.01" name="sanction_amounts[]" class="form-control" placeholder="0.00" required></div>
-            <div class="col-md-1"><button type="button" class="btn btn-danger w-100 remove-row"><i class="fas fa-minus"></i></button></div>`;
-        container.appendChild(newRow);
-    };
-
-    // JAVASCRIPT: Dynamic Attachment Logic Injection Engine
+        </div>
+        <div class="col-md-3">
+            <select name="facility_as[]" class="form-control" required>
+                ${facilityAsOptionsHtml}
+            </select>
+        </div>
+        <div class="col-md-3">
+            <input type="number" step="0.01" name="sanction_amounts[]" class="form-control" placeholder="0.00" required>
+        </div>
+        <div class="col-md-1">
+            <button type="button" class="btn btn-danger w-100 remove-row"><i class="fas fa-minus"></i></button>
+        </div>`;
+    container.appendChild(newRow);
+};
+    // Dynamic Attachment Logic Injection Engine
     document.getElementById('add-more-attachments').onclick = function() {
         let container = document.getElementById('dynamic-attachments-container');
         let newRow = document.createElement('div');

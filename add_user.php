@@ -12,6 +12,14 @@ if ($_SESSION['role'] !== 'admin') {
 
 $status = $_GET['status'] ?? null;
 
+// Fetch all active structural user groups for the UI dropdown menu
+$active_groups = $conn->query("
+    SELECT g.id, g.group_name, u.full_name AS leader_name 
+    FROM user_groups g
+    LEFT JOIN users u ON g.leader_id = u.id 
+    ORDER BY g.group_name ASC
+");
+
 // POST Insertion Handler
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $username     = trim($_POST['username']);
@@ -19,7 +27,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $role         = $_POST['role'];
     $full_name    = trim($_POST['full_name']);
     $designation  = trim($_POST['designation']);
+    $division     = trim($_POST['division']);   
     $employee_id  = trim($_POST['employee_id']);
+    
+    // Safely process group assignment entry (Convert empty selections to a clean SQL NULL)
+   $group_id = !empty($_POST['group_id']) ? intval($_POST['group_id']) : null;
 
     if (!empty($username) && !empty($password)) {
         
@@ -38,12 +50,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             // Securely hash password entry
             $hashed_password = password_hash($password, PASSWORD_BCRYPT);
 
-            // Prepared Statement parsing all six attributes securely
-            $insert_sql = "INSERT INTO users (username, password, role, full_name, designation, employee_id) VALUES (?, ?, ?, ?, ?, ?)";
+            // Prepared Statement parsing all eight attributes securely including group relations
+            $insert_sql = "INSERT INTO users (username, password, role, full_name, designation, division, employee_id, group_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
             $stmt = $conn->prepare($insert_sql);
-            $stmt->bind_param("ssssss", $username, $hashed_password, $role, $full_name, $designation, $employee_id);
-
-            if ($stmt->execute()) {
+            $stmt->bind_param("sssssssi", $username, $hashed_password, $role, $full_name, $designation, $division, $employee_id, $group_id);
+           
+           if ($stmt->execute()) {
                 header("Location: add_user.php?status=success");
                 exit;
             } else {
@@ -60,9 +72,27 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <meta charset="UTF-8">
     <title>System Settings - Add Internal User</title>
     <link rel="stylesheet" href="assets/css/bootstrap.min.css">
     <link rel="stylesheet" href="assets/css/all.min.css">
+    
+    <style>
+        @media screen and (max-width: 1400px) {
+            body {
+                zoom: 90%;
+                -moz-transform: scale(0.9);
+                -moz-transform-origin: top center;
+            }
+            .g-3, .mb-3, .mb-4 {
+                margin-bottom: 0.6rem !important;
+                margin-top: 0.1rem !important;
+            }
+            .card-body {
+                padding: 0.75rem !important;
+            }
+        }
+    </style>
 </head>
 <body class="bg-light p-5">
 
@@ -105,6 +135,29 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         <label class="form-label small text-uppercase fw-bold text-muted">Designation</label>
                         <input type="text" name="designation" class="form-control" placeholder="e.g. Officer, SO, SPO, AVP, SVP" required>
                     </div>
+                    <div class="col-md-4">
+                        <label class="form-label small text-uppercase fw-bold text-muted">Division</label>
+                        <select name="division" class="form-select" required>
+                            <option value="Investment">Investment</option>
+                            <option value="SME">SME</option>
+                            <option value="IMRD">IMRD</option>
+                        </select>
+                    </div>
+                    
+<div class="col-md-8">
+    <label class="form-label small text-uppercase fw-bold text-muted">Assign Operating Group / Team</label>
+    <select name="group_id" class="form-select">
+        <option value="">Independent / No Assigned Group</option>
+        <?php if ($active_groups && $active_groups->num_rows > 0): ?>
+            <?php while($g_row = $active_groups->fetch_assoc()): ?>
+                <option value="<?= $g_row['id'] ?>">
+                    <?= htmlspecialchars($g_row['group_name']) ?> 
+                    (Leader: <?= htmlspecialchars($g_row['leader_name'] ?? 'None') ?>)
+                </option>
+            <?php endwhile; ?>
+        <?php endif; ?>
+    </select>
+</div>
                 </div>
 
                 <h5 class="text-secondary border-bottom pb-2 mb-3"><i class="fas fa-key me-1"></i> Access System Authentication</h5>
