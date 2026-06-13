@@ -23,6 +23,21 @@ if (!empty($to_date)) {
     $to_date = $d ? $d->format('Y-m-d') : '';
 }
 
+// =========================================================================
+// NEW: Fetch Distinct Facility Types for Dropdown
+// =========================================================================
+$dropdown_facilities = [];
+$facilityListQuery = "SELECT DISTINCT TRIM(facility_type) AS f_type 
+                      FROM file_facilities 
+                      WHERE facility_type IS NOT NULL AND TRIM(facility_type) != '' 
+                      ORDER BY TRIM(facility_type) ASC";
+$facilityListRes = $conn->query($facilityListQuery);
+if ($facilityListRes) {
+    while ($f_row = $facilityListRes->fetch_assoc()) {
+        $dropdown_facilities[] = $f_row['f_type'];
+    }
+}
+
 // 1. Fetch Main File Data
 $stmt = $conn->prepare("SELECT * FROM office_files WHERE id = ?");
 $stmt->bind_param("i", $id);
@@ -31,10 +46,7 @@ $data = $stmt->get_result()->fetch_assoc();
 
 if (!$data) { echo "Record not found."; exit; }
 
-// 2. Fetch Facilities with optional date and type filters
 // 2. Fetch Facilities with the name of the actual user who created the record
-// 2. Fetch Facilities with optional date and type filters using correct schema keys
-// Replace your Section 2 query with this version
 $fac_stmt = $conn->prepare(
     "SELECT ff.*, 
             u1.full_name AS sanctioned_by_user,
@@ -98,7 +110,7 @@ foreach ($fac_rows as $row) {
 krsort($year_groups);
 
 // 3. Fetch Attachments from the correct "attachments" database table
-$attach_query = "SELECT id, file_path, description FROM attachments WHERE file_record_id = ? ORDER BY id ASC";
+$attach_query = "SELECT id, file_path, description, sanction_date FROM attachments WHERE file_record_id = ? ORDER BY id ASC";
 $stmt_attach = $conn->prepare($attach_query);
 $stmt_attach->bind_param("i", $id);
 $stmt_attach->execute();
@@ -205,7 +217,14 @@ while ($file = $attachments_result->fetch_assoc()) {
         </div>
         <div class="col-md-4">
             <label class="form-label">Facility Type</label>
-            <input type="text" name="facility_filter" class="form-control form-control-sm" placeholder="e.g. BG, LC, PIF, HYPO" value="<?php echo htmlspecialchars($facility_filter); ?>">
+            <select name="facility_filter" class="form-select form-select-sm">
+                <option value="">-- All Facility Types --</option>
+                <?php foreach ($dropdown_facilities as $f_opt): ?>
+                    <option value="<?php echo htmlspecialchars($f_opt); ?>" <?php echo ($facility_filter === $f_opt) ? 'selected' : ''; ?>>
+                        <?php echo htmlspecialchars(strtoupper($f_opt)); ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
         </div>
         <div class="col-md-2 d-flex align-items-end">
             <button type="submit" class="btn btn-primary btn-sm w-100"><i class="fas fa-filter"></i> Apply</button>
@@ -221,7 +240,7 @@ while ($file = $attachments_result->fetch_assoc()) {
                         $labelParts = [];
                         if ($from_date) { $labelParts[] = 'From ' . date('d.m.Y', strtotime($from_date)); }
                         if ($to_date) { $labelParts[] = 'To ' . date('d.m.Y', strtotime($to_date)); }
-                        if ($facility_filter) { $labelParts[] = 'Facility contains "' . htmlspecialchars($facility_filter) . '"'; }
+                        if ($facility_filter) { $labelParts[] = 'Facility: "' . htmlspecialchars($facility_filter) . '"'; }
                         echo implode(' | ', $labelParts);
                     ?>
                 </div>
@@ -305,38 +324,38 @@ while ($file = $attachments_result->fetch_assoc()) {
                         $display_comm_date = 'N/A';
                     }
                     ?>
-     <div class="sanction-header d-flex justify-content-between align-items-center bg-light border p-3 mt-4 rounded-top shadow-sm">
-    <div class="fw-bold text-dark">
-        <i class="fas fa-calendar-check text-primary me-2"></i>
-        <span class="badge bg-primary text-white me-2">Approval No: <?php echo htmlspecialchars($rows[0]['sanction_letter_ref_no'] ?? 'N/A'); ?></span>
-        <span class="text-muted">Sanction Date:</span> <?php echo htmlspecialchars($dateKey); ?>
-        
-        <div class="small mt-1 fw-normal text-muted d-flex align-items-center gap-3">
-    <div>
-        <i class="fas fa-user-check me-1 text-success" style="font-size: 0.8rem;"></i> 
-        Sanctioned By: <strong class="text-dark"><?php echo htmlspecialchars($rows[0]['sanctioned_by_user'] ?? 'System / Legacy'); ?></strong>
-    </div>
-    
-    <?php if (!empty($rows[0]['updated_by_user'])): ?>
-        <div class="border-start ps-3">
-            <i class="fas fa-user-edit me-1 text-warning" style="font-size: 0.8rem;"></i> 
-            Updated By: <strong class="text-dark"><?php echo htmlspecialchars($rows[0]['updated_by_user']); ?></strong>
-        </div>
-    <?php endif; ?>
-</div>
-    </div>
-    
-    <div class="text-end">
-        <div class="small">
-            <strong>Invest. Committee Meeting No &amp; (Date):</strong> <?php echo htmlspecialchars($rows[0]['comm_meet_no'] ?: 'N/A'); ?>
-            <span class="text-muted">(<?php echo $display_comm_date; ?>)</span>
-        </div>
-        <div class="small">
-            <strong>Board Meeting No &amp; (Date):</strong> <?php echo htmlspecialchars($rows[0]['board_meet_no'] ?: 'N/A'); ?>
-            <span class="text-muted">(<?php echo $display_board_date; ?>)</span>
-        </div>
-    </div>
-</div>
+                    <div class="sanction-header d-flex justify-content-between align-items-center bg-light border p-3 mt-4 rounded-top shadow-sm">
+                        <div class="fw-bold text-dark">
+                            <i class="fas fa-calendar-check text-primary me-2"></i>
+                            <span class="badge bg-primary text-white me-2">Approval No: <?php echo htmlspecialchars($rows[0]['sanction_letter_ref_no'] ?? 'N/A'); ?></span>
+                            <span class="text-muted">Sanction Date:</span> <?php echo htmlspecialchars($dateKey); ?>
+                            
+                            <div class="small mt-1 fw-normal text-muted d-flex align-items-center gap-3">
+                                <div>
+                                    <i class="fas fa-user-check me-1 text-success" style="font-size: 0.8rem;"></i> 
+                                    Sanctioned By: <strong class="text-dark"><?php echo htmlspecialchars($rows[0]['sanctioned_by_user'] ?? 'System / Legacy'); ?></strong>
+                                </div>
+                                
+                                <?php if (!empty($rows[0]['updated_by_user'])): ?>
+                                    <div class="border-start ps-3">
+                                        <i class="fas fa-user-edit me-1 text-warning" style="font-size: 0.8rem;"></i> 
+                                        Updated By: <strong class="text-dark"><?php echo htmlspecialchars($rows[0]['updated_by_user']); ?></strong>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                        
+                        <div class="text-end">
+                            <div class="small">
+                                <strong>Invest. Committee Meeting No &amp; (Date):</strong> <?php echo htmlspecialchars($rows[0]['comm_meet_no'] ?: 'N/A'); ?>
+                                <span class="text-muted">(<?php echo $display_comm_date; ?>)</span>
+                            </div>
+                            <div class="small">
+                                <strong>Board Meeting No &amp; (Date):</strong> <?php echo htmlspecialchars($rows[0]['board_meet_no'] ?: 'N/A'); ?>
+                                <span class="text-muted">(<?php echo $display_board_date; ?>)</span>
+                            </div>
+                        </div>
+                    </div>
                     <table class="table table-hover border mb-0">
                         <thead class="table-white">
                             <tr class="small text-uppercase">
@@ -359,72 +378,72 @@ while ($file = $attachments_result->fetch_assoc()) {
                         </tbody>
                     </table>
 
-<div class="card mt-2 mb-4 border-top-0 rounded-0 rounded-bottom shadow-sm">
-    <div class="card-header bg-dark text-white py-2 d-flex justify-content-between align-items-center" style="font-size:0.85rem;">
-        <span class="fw-bold"><i class="fas fa-paperclip text-warning me-2"></i> Workflow Documentation for Sanction Date: <?php echo htmlspecialchars($dateKey); ?></span>
-    </div>
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-hover table-striped align-middle m-0" style="font-size:0.9rem;">
-                <thead class="table-light small text-secondary text-uppercase fw-bold">
-                    <tr>
-                        <th style="width: 80px;" class="text-center">Sl No.</th>
-                        <th style="width: 35%;">Document Description Heading</th>
-                        <th>Server System File Path</th>
-                        <th style="width: 150px;" class="text-center">Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php 
-                    // Convert the display loop date (d.m.Y) back to standard database format (Y-m-d)
-                    $db_lookup_date = date('Y-m-d', strtotime($dateKey));
-                    
-                    $scoped_attach_query = "SELECT id, file_path, description FROM attachments WHERE file_record_id = ? AND sanction_date = ? ORDER BY id ASC";
-                    $stmt_scoped = $conn->prepare($scoped_attach_query);
-                    $stmt_scoped->bind_param("is", $id, $db_lookup_date);
-                    $stmt_scoped->execute();
-                    $scoped_attachments = $stmt_scoped->get_result();
+                    <div class="card mt-2 mb-4 border-top-0 rounded-0 rounded-bottom shadow-sm">
+                        <div class="card-header bg-dark text-white py-2 d-flex justify-content-between align-items-center" style="font-size:0.85rem;">
+                            <span class="fw-bold"><i class="fas fa-paperclip text-warning me-2"></i> Workflow Documentation for Sanction Date: <?php echo htmlspecialchars($dateKey); ?></span>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover table-striped align-middle m-0" style="font-size:0.9rem;">
+                                    <thead class="table-light small text-secondary text-uppercase fw-bold">
+                                        <tr>
+                                            <th style="width: 80px;" class="text-center">Sl No.</th>
+                                            <th style="width: 35%;">Document Description Heading</th>
+                                            <th>Server System File Path</th>
+                                            <th style="width: 150px;" class="text-center">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php 
+                                        // Convert the display loop date (d.m.Y) back to standard database format (Y-m-d)
+                                        $db_lookup_date = date('Y-m-d', strtotime($dateKey));
+                                        
+                                        $scoped_attach_query = "SELECT id, file_path, description FROM attachments WHERE file_record_id = ? AND sanction_date = ? ORDER BY id ASC";
+                                        $stmt_scoped = $conn->prepare($scoped_attach_query);
+                                        $stmt_scoped->bind_param("is", $id, $db_lookup_date);
+                                        $stmt_scoped->execute();
+                                        $scoped_attachments = $stmt_scoped->get_result();
 
-                    if ($scoped_attachments && $scoped_attachments->num_rows > 0): 
-                        $sl = 1; 
-                        while ($file = $scoped_attachments->fetch_assoc()): 
-                            $ext = strtolower(pathinfo($file['file_path'], PATHINFO_EXTENSION));
-                            $icon_class = "fa-file-alt text-secondary";
-                            
-                            if ($ext === 'pdf') { $icon_class = "fa-file-pdf text-danger"; }
-                            elseif (in_array($ext, ['doc', 'docx'])) { $icon_class = "fa-file-word text-primary"; }
-                            elseif (in_array($ext, ['xls', 'xlsx'])) { $icon_class = "fa-file-excel text-success"; }
-                            elseif (in_array($ext, ['jpg', 'jpeg', 'png'])) { $icon_class = "fa-file-image text-info"; }
-                    ?>
-                            <tr>
-                                <td class="text-center fw-bold text-muted"><?php echo $sl++; ?></td>
-                                <td class="fw-bold text-dark">
-                                    <i class="fas <?php echo $icon_class; ?> fa-lg me-2"></i>
-                                    <?php echo htmlspecialchars($file['description']); ?>
-                                </td>
-                                <td><code class="small text-muted"><?php echo htmlspecialchars($file['file_path']); ?></code></td>
-                                <td class="text-center">
-                                    <a href="<?php echo htmlspecialchars($file['file_path']); ?>" 
-                                       target="_blank" 
-                                       class="btn btn-xs btn-outline-primary py-1 px-2 fw-bold rounded"
-                                       style="font-size:0.8rem;" download>
-                                        <i class="fas fa-cloud-download-alt me-1"></i> Download
-                                    </a>
-                                </td>
-                            </tr>
-                        <?php endwhile; ?>
-                    <?php else: ?>
-                        <tr>
-                            <td colspan="4" class="text-center py-3 text-muted bg-light small">
-                                <i class="fas fa-info-circle me-1"></i> No unique documentation attachments uploaded on this specific date.
-                            </td>
-                        </tr>
-                    <?php endif; $stmt_scoped->close(); ?>
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
+                                        if ($scoped_attachments && $scoped_attachments->num_rows > 0): 
+                                            $sl = 1; 
+                                            while ($file = $scoped_attachments->fetch_assoc()): 
+                                                $ext = strtolower(pathinfo($file['file_path'], PATHINFO_EXTENSION));
+                                                $icon_class = "fa-file-alt text-secondary";
+                                                
+                                                if ($ext === 'pdf') { $icon_class = "fa-file-pdf text-danger"; }
+                                                elseif (in_array($ext, ['doc', 'docx'])) { $icon_class = "fa-file-word text-primary"; }
+                                                elseif (in_array($ext, ['xls', 'xlsx'])) { $icon_class = "fa-file-excel text-success"; }
+                                                elseif (in_array($ext, ['jpg', 'jpeg', 'png'])) { $icon_class = "fa-file-image text-info"; }
+                                        ?>
+                                                <tr>
+                                                    <td class="text-center fw-bold text-muted"><?php echo $sl++; ?></td>
+                                                    <td class="fw-bold text-dark">
+                                                        <i class="fas <?php echo $icon_class; ?> fa-lg me-2"></i>
+                                                        <?php echo htmlspecialchars($file['description']); ?>
+                                                    </td>
+                                                    <td><code class="small text-muted"><?php echo htmlspecialchars($file['file_path']); ?></code></td>
+                                                    <td class="text-center">
+                                                        <a href="<?php echo htmlspecialchars($file['file_path']); ?>" 
+                                                           target="_blank" 
+                                                           class="btn btn-xs btn-outline-primary py-1 px-2 fw-bold rounded"
+                                                           style="font-size:0.8rem;" download>
+                                                            <i class="fas fa-cloud-download-alt me-1"></i> Download
+                                                        </a>
+                                                    </td>
+                                                </tr>
+                                            <?php endwhile; ?>
+                                        <?php else: ?>
+                                            <tr>
+                                                <td colspan="4" class="text-center py-3 text-muted bg-light small">
+                                                    <i class="fas fa-info-circle me-1"></i> No unique documentation attachments uploaded on this specific date.
+                                                </td>
+                                            </tr>
+                                        <?php endif; $stmt_scoped->close(); ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
                 <?php endforeach; ?>
 
                 <div class="row row-cols-1 row-cols-md-3 g-2 mt-3 p-3 bg-light rounded-bottom">

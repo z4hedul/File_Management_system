@@ -121,12 +121,13 @@ $isAdmin = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin');
 <nav class="navbar navbar-expand-lg navbar-dark fixed-top fsibl-navbar">
     <div class="container-fluid">
         <a class="navbar-brand d-flex align-items-center me-4" href="index.php">
-            <div class="me-2 text-center bg-white rounded-circle d-flex align-items-center justify-content-center" style="width: 38px; height: 38px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                <i class="fas fa-file-invoice text-success" style="font-size: 1.2rem; color: #006a4e !important;"></i>
+            <!-- Enlarged Logo Image -->
+            <div class="me-3 text-center bg-white rounded-circle d-flex align-items-center justify-content-center overflow-hidden" style="width: 55px; height: 55px; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
+                <img src="images/fsib_logo.png" alt="FSIBL Logo" style="width: 70%; height: 80%; object-fit: cover;" onerror="this.onerror=null; this.parentElement.innerHTML='<i class=\'fas fa-file-invoice text-success\' style=\'font-size: 1.8rem; color: #006a4e !important;\'></i>'">
             </div>
             <div>
-                <span class="fsibl-brand-title">FSIBL</span>
-                <span class="fsibl-brand-subtitle">File Management System</span>
+                <span class="fsibl-brand-title" style="font-size: 1.4rem;">FSIB PLC</span>
+                <span class="fsibl-brand-subtitle" style="font-size: 0.75rem;">File Management System</span>
             </div>
         </a>
         
@@ -151,24 +152,24 @@ $isAdmin = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin');
                         <i class="fas fa-chart-line me-1 small text-warning"></i> Reports
                     </a>
                 </li>
-            <li class="nav-item ms-lg-2 d-flex align-items-center">
-                <a class="nav-link" href="add_record.php">
-                     <i class="fas fa-folder-plus text-warning"></i> 
-                    <span>New File</span>
-                </a>
+                <li class="nav-item ms-lg-2 d-flex align-items-center">
+                    <a class="nav-link" href="add_record.php">
+                        <i class="fas fa-folder-plus text-warning"></i> 
+                        <span>New File</span>
+                    </a>
                 </li>
-            <li class="nav-item ms-lg-2 d-flex align-items-center">
-                <a class="nav-link" href="add_record.php">
-                     <i class="fas fa-warehouse"></i> 
-                    <span>Cabinet Ledger</span>
-                </a>
-                 </li>
-             <li class="nav-item ms-lg-2 d-flex align-items-center">
-                <a class="nav-link text-white rounded-pill px-3 py-1 shadow-sm d-inline-flex align-items-center gap-2" href="search.php" style="background-color: #006a4e; font-size: 13px; font-weight: 500; transition: all 0.2s ease;">
-                    <i class="fas fa-search text-warning small"></i> 
-                    <span>Search File</span>
-                </a>
-            </li>
+                <li class="nav-item ms-lg-2 d-flex align-items-center">
+                    <a class="nav-link" href="cabinet_ledger.php">
+                        <i class="fas fa-warehouse"></i> 
+                        <span>Cabinet Ledger</span>
+                    </a>
+                </li>
+                <li class="nav-item ms-lg-2 d-flex align-items-center">
+                    <a class="nav-link text-white rounded-pill px-3 py-1 shadow-sm d-inline-flex align-items-center gap-2" href="search.php" style="background-color: #006a4e; font-size: 13px; font-weight: 500; transition: all 0.2s ease;">
+                        <i class="fas fa-search text-warning small"></i> 
+                        <span>Search File</span>
+                    </a>
+                </li>
             </ul>
 
             <div class="d-flex align-items-center flex-wrap gap-2">

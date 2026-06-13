@@ -198,6 +198,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_proposal'])) {
         .text-purple { color: #6f42c1; }
         .remove-facility-btn { transition: all 0.2s ease-in-out; }
         .remove-facility-btn:hover { background-color: #dc3545 !important; color: white !important; }
+        .amount-word-display {
+            font-size: 0.75rem;
+            background: #f8f9fa;
+            padding: 6px 10px;
+            border-radius: 6px;
+            margin-top: 5px;
+            color: #28a745;
+            font-weight: 500;
+            border-left: 3px solid #28a745;
+        }
+        .amount-word-display i {
+            margin-right: 5px;
+            color: #28a745;
+        }
     </style>
 </head>
 <body class="bg-light">
@@ -313,7 +327,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_proposal'])) {
                                     <div class="col-md-5">
                                         <div class="input-group">
                                             <span class="input-group-text bg-light font-monospace small">BDT</span>
-                                            <input type="number" step="0.01" name="proposal_amount[]" class="form-control border-primary font-monospace fw-bold" placeholder="0.00" required>
+                                            <input type="number" step="0.01" name="proposal_amount[]" class="form-control border-primary font-monospace fw-bold amount-input" placeholder="0.00" required>
+                                        </div>
+                                        <div class="amount-word-display" style="display:none;">
+                                            <i class="fas fa-language"></i> <span class="amount-words">Zero Taka Only</span>
                                         </div>
                                     </div>
 
@@ -349,12 +366,110 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_proposal'])) {
 </div>
 
 <script>
+// Amount to Words Conversion Function
+function numberToWords(num) {
+    if (num === 0) return 'Zero';
+    
+    const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
+                  'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
+                  'Seventeen', 'Eighteen', 'Nineteen'];
+    const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+    
+    function convertLessThanThousand(n) {
+        if (n === 0) return '';
+        if (n < 20) return ones[n] + ' ';
+        if (n < 100) return tens[Math.floor(n / 10)] + ' ' + (n % 10 !== 0 ? ones[n % 10] + ' ' : '');
+        return ones[Math.floor(n / 100)] + ' Hundred ' + (n % 100 !== 0 ? convertLessThanThousand(n % 100) : '');
+    }
+    
+    let amount = Math.floor(num);
+    let decimal = Math.round((num - amount) * 100);
+    
+    let result = '';
+    
+    // Convert crores (10 million)
+    if (amount >= 10000000) {
+        result += convertLessThanThousand(Math.floor(amount / 10000000)) + 'Crore ';
+        amount %= 10000000;
+    }
+    // Convert lakhs (100,000)
+    if (amount >= 100000) {
+        result += convertLessThanThousand(Math.floor(amount / 100000)) + 'Lakh ';
+        amount %= 100000;
+    }
+    // Convert thousands
+    if (amount >= 1000) {
+        result += convertLessThanThousand(Math.floor(amount / 1000)) + 'Thousand ';
+        amount %= 1000;
+    }
+    // Convert hundreds
+    if (amount >= 100) {
+        result += convertLessThanThousand(Math.floor(amount / 100)) + 'Hundred ';
+        amount %= 100;
+    }
+    // Convert remaining
+    if (amount > 0) {
+        result += convertLessThanThousand(amount);
+    }
+    
+    result = result.trim();
+    result += ' Taka';
+    
+    // Add decimal part
+    if (decimal > 0) {
+        let decimalWords = '';
+        if (decimal < 20) {
+            decimalWords = ones[decimal];
+        } else {
+            decimalWords = tens[Math.floor(decimal / 10)] + (decimal % 10 !== 0 ? ' ' + ones[decimal % 10] : '');
+        }
+        result += ' and ' + decimalWords + ' Paisa';
+    } else {
+        result += ' Only';
+    }
+    
+    return result;
+}
+
+// Function to update amount words for a specific row
+function updateAmountWords(inputElement) {
+    const row = inputElement.closest('.facility-row-entry');
+    const amountDisplay = row.querySelector('.amount-word-display');
+    const amountWordsSpan = row.querySelector('.amount-words');
+    let amount = parseFloat(inputElement.value) || 0;
+    
+    if (amount > 0) {
+        const words = numberToWords(amount);
+        amountWordsSpan.textContent = words;
+        amountDisplay.style.display = 'block';
+    } else {
+        amountDisplay.style.display = 'none';
+    }
+}
+
+// Add event listeners to all amount inputs
+function attachAmountListeners() {
+    document.querySelectorAll('.amount-input').forEach(input => {
+        input.removeEventListener('input', function() {});
+        input.addEventListener('input', function() {
+            updateAmountWords(this);
+        });
+        // Trigger initial update if there's a value
+        if (input.value && parseFloat(input.value) > 0) {
+            updateAmountWords(input);
+        }
+    });
+}
+
 document.addEventListener("DOMContentLoaded", function() {
     const fileIdInput     = document.getElementById("file_id");
     const prefixPreview   = document.getElementById("prefix_preview");
     const currentYear     = "<?= date('Y'); ?>";
     const masterContainer = document.getElementById("facilities_master_container");
     const addRowBtn       = document.getElementById("add_facility_row_btn");
+
+    // Initial attachment of amount listeners
+    attachAmountListeners();
 
     // Fetch dynamic prefix tracking metrics right at execution initialization
     const initialFileId = fileIdInput.value;
@@ -398,7 +513,14 @@ document.addEventListener("DOMContentLoaded", function() {
 
         // Reset configuration layout elements inside the clone container
         clonedRow.querySelector(".proposal-type-selector").value = "";
-        clonedRow.querySelector("input[type='number']").value = "";
+        const amountInput = clonedRow.querySelector("input[type='number']");
+        amountInput.value = "";
+        
+        // Reset amount word display
+        const amountDisplay = clonedRow.querySelector(".amount-word-display");
+        amountDisplay.style.display = "none";
+        const amountWordsSpan = clonedRow.querySelector(".amount-words");
+        if (amountWordsSpan) amountWordsSpan.textContent = "Zero Taka Only";
         
         const subOthersBox = clonedRow.querySelector(".others-container");
         subOthersBox.style.display = "none";
@@ -415,6 +537,11 @@ document.addEventListener("DOMContentLoaded", function() {
         deleteBtn.classList.remove("d-none");
 
         masterContainer.appendChild(clonedRow);
+        
+        // Attach event listener to the new amount input
+        amountInput.addEventListener('input', function() {
+            updateAmountWords(this);
+        });
     });
 
     // Trash row deletion monitoring framework row action

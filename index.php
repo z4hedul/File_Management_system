@@ -22,7 +22,7 @@ if (isset($_SESSION['username'])) {
     
     if (!empty($user_res['full_name'])) {
         $display_name = $user_res['full_name'];
-        $_SESSION['full_name'] = $user_res['full_name']; // Save to session for optimization
+        $_SESSION['full_name'] = $user_res['full_name'];
     }
     $user_stmt->close();
 }
@@ -41,6 +41,7 @@ if (!empty($from_date) && !empty($to_date)) {
 
 // Get the active filtered status from the URL click action
 $active_filter = $_GET['status_view'] ?? '';
+$show_queue = isset($_GET['show_queue']) && $_GET['show_queue'] == '1';
 
 // 1. Total Proposals Assigned (Unique files tracked)
 $q_assigned = "SELECT COUNT(DISTINCT pa.proposal_ref) AS total FROM proposal_assignments pa
@@ -61,7 +62,6 @@ $stages = [
     'board_minutes'     => "Board Minutes",
     'declined'          => "Declined",
     'approved'          => "Approval/Sanction",
-    
 ];
 
 $counts = [];
@@ -80,7 +80,7 @@ foreach ($stages as $key => $status_value) {
                     JOIN office_files o ON pa.file_id = o.id 
                     INNER JOIN file_facilities ff ON o.id = ff.file_record_id
                     WHERE pa.proposal_status = ? AND o.is_deleted = 0 
-                    AND ff.sanction_date BETWEEN DATE_SUB(NOW(), INTERVAL 1 MONTH) AND NOW()";
+                    AND ff.sanction_date >= DATE_SUB(CURDATE(), INTERVAL 15 DAY)";
             $stmt = $conn->prepare($sql);
         }
     } else {
@@ -99,44 +99,50 @@ foreach ($stages as $key => $status_value) {
 
 $total_processing = $counts['proposal_received'] + $counts['in_prep'] + $counts['office_note'] + $counts['committee_memo'] + $counts['committee_minutes'] + $counts['board_memo'] + $counts['board_minutes'];
 
-// 3. Relational Queue Loader pulling matching table lists based on active filter selection
+// FIX #1: Only fetch matching proposals when show_queue is true
 $matching_proposals = [];
-$list_sql = "SELECT 
-                GROUP_CONCAT(pa.id SEPARATOR '||') AS composite_ids,
-                pa.proposal_ref,
-                pa.proposal_status,
-                pa.remarks,
-                pa.assigned_date AS assigned_time,
-                o.client AS client_name,
-                o.file_no AS file_no,
-                o.branch_name AS branch_name,
-                o.division,
-                o.id AS file_rec_id,
-                u.full_name AS officer_name,
-                GROUP_CONCAT(CONCAT(pa.proposal_type, '::', pa.proposal_amount) SEPARATOR '||') AS structural_facilities,
-                COUNT(DISTINCT pa.id) AS proposal_row_count
-             FROM proposal_assignments pa
-             JOIN office_files o ON pa.file_id = o.id
-             LEFT JOIN users u ON pa.user_id = u.id
-             WHERE o.is_deleted = 0";
-
-if (!empty($active_filter)) {
-    $list_sql .= " AND pa.proposal_status = ?";
-}
-
-$list_sql .= " GROUP BY pa.proposal_ref, pa.proposal_status, pa.file_id, o.client, o.file_no, o.branch_name, o.division, o.id, u.full_name, pa.remarks, pa.assigned_date ORDER BY MAX(pa.id) DESC";
-$list_stmt = $conn->prepare($list_sql);
-
-if (!empty($active_filter)) {
+if ($show_queue && !empty($active_filter)) {
+    $list_sql = "SELECT 
+                    pa.id,
+                    pa.proposal_ref,
+                    pa.proposal_status,
+                    pa.remarks,
+                    pa.assigned_date AS assigned_time,
+                    o.client AS client_name,
+                    o.file_no AS file_no,
+                    o.branch_name AS branch_name,
+                    o.division,
+                    o.id AS file_rec_id,
+                    u.full_name AS officer_name,
+                    pa.proposal_type,
+                    pa.proposal_amount,
+                    ff.sanction_letter_ref_no,
+                    ff.sanction_date,
+                    ff.board_meet_no,
+                    ff.comm_meet_no
+                 FROM proposal_assignments pa
+                 JOIN office_files o ON pa.file_id = o.id
+                 LEFT JOIN users u ON pa.user_id = u.id
+                 LEFT JOIN file_facilities ff ON o.id = ff.file_record_id
+                 WHERE o.is_deleted = 0
+                 AND pa.proposal_status = ?";
+    
+    if ($active_filter === 'Approval/Sanction' && empty($from_date) && empty($to_date)) {
+        $list_sql .= " AND ff.sanction_date >= DATE_SUB(CURDATE(), INTERVAL 15 DAY)";
+    } elseif ($active_filter === 'Approval/Sanction' && !empty($from_date) && !empty($to_date)) {
+        $list_sql .= " AND ff.sanction_date BETWEEN '{$safe_from} 00:00:00' AND '{$safe_to} 23:59:59'";
+    }
+    
+    $list_sql .= " ORDER BY pa.assigned_date DESC";
+    
+    $list_stmt = $conn->prepare($list_sql);
     $list_stmt->bind_param('s', $active_filter);
+    $list_stmt->execute();
+    $matching_proposals = $list_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $list_stmt->close();
 }
 
-$list_stmt->execute();
-$matching_proposals = $list_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-$list_stmt->close();
-
-
-// 4. UNIFIED WORKFORCE ENGINE: Fetch all group members AND their leaders (Excluding completely unassigned staff)
+// FIX #2: Improved workforce query to correctly show active tasks and client names
 $unified_workforce_res = $conn->query("
     SELECT 
         u.id AS user_id,
@@ -144,14 +150,30 @@ $unified_workforce_res = $conn->query("
         u.username,
         u.employee_id,
         g.group_name,
+        g.leader_id,
         (SELECT leader.full_name FROM users leader WHERE leader.id = g.leader_id) AS leader_name,
-        GROUP_CONCAT(DISTINCT o.client SEPARATOR '||') AS client_list,
-        COUNT(DISTINCT CASE WHEN o.is_deleted = 0 AND pa.proposal_status NOT IN ('Approval/Sanction', 'Declined') THEN pa.proposal_ref END) AS active_count
+        COUNT(DISTINCT CASE 
+            WHEN o.is_deleted = 0 
+            AND pa.proposal_status NOT IN ('Approval/Sanction', 'Declined') 
+            AND pa.proposal_status IS NOT NULL
+            THEN pa.proposal_ref 
+        END) AS active_count,
+        GROUP_CONCAT(DISTINCT 
+            CASE 
+                WHEN o.is_deleted = 0 
+                AND pa.proposal_status NOT IN ('Approval/Sanction', 'Declined')
+                AND o.client IS NOT NULL
+                THEN CONCAT(o.client, '|', pa.proposal_status)
+            END 
+            ORDER BY pa.assigned_date DESC
+            SEPARATOR '||'
+        ) AS client_with_status
     FROM users u
     INNER JOIN user_groups g ON u.group_id = g.id
     LEFT JOIN proposal_assignments pa ON u.id = pa.user_id
-    LEFT JOIN office_files o ON pa.file_id = o.id AND o.is_deleted = 0 AND pa.proposal_status NOT IN ('Approval/Sanction', 'Declined')
-    GROUP BY u.id
+    LEFT JOIN office_files o ON pa.file_id = o.id AND o.is_deleted = 0
+    WHERE u.is_locked = 0 OR u.is_locked IS NULL
+    GROUP BY u.id, u.full_name, u.username, u.employee_id, g.group_name, g.leader_id
     ORDER BY g.group_name ASC, active_count DESC, u.full_name ASC
 ");
 
@@ -162,12 +184,44 @@ if ($unified_workforce_res && $unified_workforce_res->num_rows > 0) {
         if (!isset($workforce_hierarchy[$g_name])) {
             $workforce_hierarchy[$g_name] = [
                 'leader' => $row['leader_name'] ?? 'None Assigned',
+                'leader_id' => $row['leader_id'],
                 'roster' => []
             ];
         }
+        $client_list = [];
+        if (!empty($row['client_with_status'])) {
+            $items = explode('||', $row['client_with_status']);
+            foreach ($items as $item) {
+                $parts = explode('|', $item);
+                if (count($parts) >= 2 && !empty($parts[0])) {
+                    $client_list[] = [
+                        'name' => $parts[0],
+                        'status' => $parts[1]
+                    ];
+                } elseif (!empty($item)) {
+                    $client_list[] = [
+                        'name' => $item,
+                        'status' => 'Unknown'
+                    ];
+                }
+            }
+        }
+        $row['client_details'] = $client_list;
         $workforce_hierarchy[$g_name]['roster'][] = $row;
     }
 }
+
+// ============================================================
+// DEFINE THE buildStageUrl FUNCTION HERE (BEFORE HTML OUTPUT)
+// ============================================================
+function buildStageUrl($stage_name, $from, $to) {
+    $url = "index.php?status_view=" . urlencode($stage_name) . "&show_queue=1";
+    if (!empty($from) && !empty($to)) {
+        $url .= "&from_date=" . urlencode($from) . "&to_date=" . urlencode($to);
+    }
+    return $url;
+}
+// ============================================================
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -179,203 +233,364 @@ if ($unified_workforce_res && $unified_workforce_res->num_rows > 0) {
     <link rel="stylesheet" href="assets/css/all.min.css">
     <link rel="stylesheet" href="assets/css/style.css">
     <style>
-        :root {
-            --panel-bg: #ffffff;
-            --border-radius-lg: 16px;
-            --border-radius-md: 10px;
-            --transition-smooth: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        
-        body {
-            background-color: #f4f6f9 !important;
-            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-        }
-
-        .dashboard-hero-card {
-            background: var(--panel-bg);
-            border-radius: var(--border-radius-lg);
-            border: none;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
-            padding: 24px;
-            margin-bottom: 30px;
-        }
-
-        .action-toolbar-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 12px;
-            width: 100%;
-        }
-
-        @media (min-width: 1200px) {
-            .action-toolbar-grid {
-                display: flex;
-                flex-wrap: wrap;
-                align-items: center;
-                justify-content: flex-start;
-            }
-            .action-toolbar-grid .btn {
-                flex: 0 1 auto;
-                min-width: 140px;
-            }
-            .admin-divider {
-                width: 2px;
-                height: 34px;
-                background-color: #e0e6ed;
-                margin: 0 8px;
-                display: block;
-            }
-        }
-
-        .toolbar-btn {
-            font-size: 0.88rem !important;
-            font-weight: 600 !important;
-            padding: 10px 16px !important;
-            border-radius: var(--border-radius-md) !important;
-            border-width: 2px !important;
-            display: inline-flex !important;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            transition: var(--transition-smooth) !important;
-        }
-
-        .toolbar-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 14px rgba(0, 0, 0, 0.08) !important;
-        }
-
-        .btn-outline-purple {
-            color: #6f42c1;
-            border-color: #6f42c1;
-            background: transparent;
-        }
-        .btn-outline-purple:hover {
-            color: #fff;
-            background-color: #6f42c1;
-            border-color: #6f42c1;
-        }
-
-        .metric-card { 
-            transition: var(--transition-smooth); 
-            border: none; 
-            border-radius: var(--border-radius-md);
-            background: #fff;
-        }
-        .metric-card:hover { 
-            transform: translateY(-4px); 
-            box-shadow: 0 8px 25px rgba(0,0,0,0.06) !important; 
-        }
-        .icon-shape { 
-            width: 50px; 
-            height: 50px; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            border-radius: 12px; 
-        }
-        
-        .client-link { text-decoration: none; color: #212529; transition: var(--transition-smooth); }
-        .client-link:hover { color: #0d6efd; text-decoration: underline; }
-        
-        /* Hierarchy styling extensions */
-        .group-card-header {
-            background-color: #212529;
-            border-left: 5px solid #1a188f;
-            color: #fff;
-            border-radius: 6px 6px 0 0;
-        }
+    :root {
+        --primary-color: #2c3e50;
+        --secondary-color: #34495e;
+        --success-color: #27ae60;
+        --danger-color: #e74c3c;
+        --warning-color: #f39c12;
+        --info-color: #3498db;
+        --light-bg: #f8f9fa;
+        --dark-bg: #2c3e50;
+        --border-radius: 12px;
+        --box-shadow: 0 2px 4px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.03);
+        --box-shadow-hover: 0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.02);
+    }
+    
+    body {
+        background-color: #f0f2f5 !important;
+        font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    }
+    
+    /* Admin Toolbar - Professional Design */
+    .admin-toolbar-wrapper {
+        margin-bottom: 1.75rem;
+    }
+    
+    .admin-toolbar-card {
+        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+        border-radius: var(--border-radius);
+        box-shadow: var(--box-shadow);
+        overflow: hidden;
+    }
+    
+    .admin-toolbar-header {
+        background: rgba(0, 0, 0, 0.15);
+        padding: 10px 20px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.8px;
+        color: #ffd700;
+        text-transform: uppercase;
+    }
+    
+    .admin-toolbar-body {
+        padding: 14px 20px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+    }
+    
+    .admin-toolbar-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 16px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 500;
+        text-decoration: none;
+        transition: all 0.2s ease;
+        background: rgba(255, 255, 255, 0.12);
+        color: #fff;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+    
+    .admin-toolbar-btn i {
+        font-size: 13px;
+    }
+    
+    .admin-toolbar-btn:hover {
+        transform: translateY(-1px);
+        text-decoration: none;
+        background: rgba(255, 255, 255, 0.2);
+        color: #fff;
+    }
+    
+    .admin-btn-primary { background: linear-gradient(135deg, #0d6efd, #0b5ed7); }
+    .admin-btn-info { background: linear-gradient(135deg, #0dcaf0, #0bb5d8); color: #000; }
+    .admin-btn-purple { background: linear-gradient(135deg, #6f42c1, #5e37a6); }
+    .admin-btn-success { background: linear-gradient(135deg, #198754, #157347); }
+    .admin-btn-warning { background: linear-gradient(135deg, #ffc107, #e0a800); color: #000; }
+    
+    /* Metric Cards - Professional Design */
+    .metric-card {
+        border: none;
+        border-radius: var(--border-radius);
+        background: #fff;
+        transition: all 0.25s ease;
+        box-shadow: var(--box-shadow);
+    }
+    
+    .metric-card:hover {
+        transform: translateY(-3px);
+        box-shadow: var(--box-shadow-hover);
+    }
+    
+    .metric-primary { border-left: 4px solid var(--primary-color) !important; }
+    .metric-warning { border-left: 4px solid var(--warning-color) !important; }
+    .metric-success { border-left: 4px solid var(--success-color) !important; }
+    .metric-danger { border-left: 4px solid var(--danger-color) !important; }
+    
+    .icon-shape-primary {
+        background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+        color: var(--primary-color);
+    }
+    
+    .icon-shape-warning {
+        background: linear-gradient(135deg, #fff3e0, #ffe0b2);
+        color: var(--warning-color);
+    }
+    
+    .icon-shape-success {
+        background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
+        color: var(--success-color);
+    }
+    
+    .icon-shape-danger {
+        background: linear-gradient(135deg, #ffebee, #ffcdd2);
+        color: var(--danger-color);
+    }
+    
+    /* Date Filter Card */
+    .date-filter-card {
+        background: #fff;
+        border-radius: var(--border-radius);
+        padding: 8px;
+        box-shadow: var(--box-shadow);
+    }
+    
+    /* Professional Stage Cards - NEW DESIGN */
+    .stages-grid {
+        display: grid;
+        grid-template-columns: repeat(10, 1fr);
+        gap: 12px;
+    }
+    
+    .stage-card {
+        background: #fff;
+        border-radius: 16px;
+        padding: 16px 8px;
+        text-align: center;
+        transition: all 0.3s ease;
+        border: 2px solid #e9ecef;
+        cursor: pointer;
+        text-decoration: none;
+        display: block;
+    }
+    
+    .stage-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.15);
+    }
+    
+    .stage-card.active {
+        border-color: var(--primary-color);
+        background: linear-gradient(135deg, #f8f9fa 0%, #fff 100%);
+        box-shadow: 0 4px 12px rgba(44, 62, 80, 0.15);
+    }
+    
+    .stage-icon {
+        width: 48px;
+        height: 48px;
+        margin: 0 auto 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 24px;
+        font-size: 1.3rem;
+        transition: all 0.3s ease;
+    }
+    
+    .stage-count {
+        font-size: 1.6rem;
+        font-weight: 800;
+        line-height: 1.2;
+        margin-bottom: 5px;
+        color: #2c3e50;
+    }
+    
+    .stage-label {
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #6c757d;
+    }
+    
+    /* Stage Color Variants */
+    .stage-primary .stage-icon { background: rgba(44, 62, 80, 0.1); color: #2c3e50; }
+    .stage-info .stage-icon { background: rgba(52, 152, 219, 0.1); color: #3498db; }
+    .stage-warning .stage-icon { background: rgba(243, 156, 18, 0.1); color: #f39c12; }
+    .stage-purple .stage-icon { background: rgba(111, 66, 193, 0.1); color: #6f42c1; }
+    .stage-orange .stage-icon { background: rgba(253, 126, 20, 0.1); color: #fd7e14; }
+    .stage-teal .stage-icon { background: rgba(32, 201, 151, 0.1); color: #20c997; }
+    .stage-success .stage-icon { background: rgba(39, 174, 96, 0.1); color: #27ae60; }
+    .stage-dark .stage-icon { background: rgba(52, 58, 64, 0.1); color: #343a40; }
+    .stage-danger .stage-icon { background: rgba(231, 76, 60, 0.1); color: #e74c3c; }
+    
+    .stage-primary:hover .stage-icon,
+    .stage-info:hover .stage-icon,
+    .stage-warning:hover .stage-icon,
+    .stage-purple:hover .stage-icon,
+    .stage-orange:hover .stage-icon,
+    .stage-teal:hover .stage-icon,
+    .stage-success:hover .stage-icon,
+    .stage-dark:hover .stage-icon,
+    .stage-danger:hover .stage-icon {
+        transform: scale(1.05);
+    }
+    
+    @media (max-width: 1200px) {
+        .stages-grid { grid-template-columns: repeat(5, 1fr); }
+    }
+    
+    @media (max-width: 768px) {
+        .stages-grid { grid-template-columns: repeat(3, 1fr); }
+        .stage-count { font-size: 1.3rem; }
+        .stage-icon { width: 40px; height: 40px; font-size: 1.1rem; }
+    }
+    
+    /* Other existing styles */
+    .table-custom {
+        border-radius: var(--border-radius);
+        overflow: hidden;
+    }
+    
+    .table-custom thead th {
+        background: var(--dark-bg);
+        color: #fff;
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        padding: 12px 16px;
+        border: none;
+    }
+    
+    .group-card {
+        border-radius: 10px;
+        overflow: hidden;
+        margin-bottom: 20px;
+        border: 1px solid #e9ecef;
+        box-shadow: var(--box-shadow);
+    }
+    
+    .group-card-header {
+        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        padding: 10px 16px;
+        color: #fff;
+    }
     </style>
 </head>
 <body class="bg-light">
-<body class="bg-light">
-<body class="bg-light">
 <div class="container main-container app-page-wrapper pb-5" style="max-width: 1600px;">
     
-    <!-- SYSTEM ADMIN COMPACT TOOLBAR (PLACED AT THE VERY TOP OF DASHBOARD) -->
-    <?php if ($isAdmin): ?>
-        <div class="d-flex flex-wrap align-items-center gap-1.5 bg-white border border-light-subtle rounded-pill px-3 py-1.5 mb-4 shadow-sm" style="width: fit-content;">
-            <span class="d-inline-flex align-items-center gap-1.5 text-uppercase fw-bold text-secondary border-end pe-2.5 me-1" style="font-size: 10px; letter-spacing: 0.5px;">
-                <i class="fas fa-user-shield text-dark opacity-75"></i> Admin:
-            </span>
-            <a href="add_user.php" class="btn btn-link text-decoration-none d-inline-flex align-items-center gap-1.5 px-2 py-0.5 rounded-pill compact-admin-link" style="font-size: 12px; color: #0d6efd;">
-                <i class="fas fa-user-plus"></i> <span class="fw-medium">+User</span>
+    <!-- SYSTEM ADMIN COMPACT TOOLBAR -->
+   <?php if ($isAdmin): ?>
+<div class="admin-toolbar-wrapper mb-4">
+    <div class="admin-toolbar-card">
+        <div class="admin-toolbar-header">
+            <i class="fas fa-shield-alt me-2"></i>
+            <span>Administrator Control Panel</span>
+        </div>
+        <div class="admin-toolbar-body">
+            <a href="add_user.php" class="admin-toolbar-btn admin-btn-primary">
+                <i class="fas fa-user-plus"></i>
+                <span>Add User</span>
             </a>
-            <a href="manage_users.php" class="btn btn-link text-decoration-none d-inline-flex align-items-center gap-1.5 px-2 py-0.5 rounded-pill compact-admin-link" style="font-size: 12px; color: #0dcaf0;">
-                <i class="fas fa-users"></i> <span class="fw-medium">Users</span>
+            <a href="manage_users.php" class="admin-toolbar-btn admin-btn-primary">
+                <i class="fas fa-users-cog"></i>
+                <span>Manage Users</span>
             </a>
-            <a href="manage_groups.php" class="btn btn-link text-decoration-none d-inline-flex align-items-center gap-1.5 px-2 py-0.5 rounded-pill compact-admin-link" style="font-size: 12px; color: #6f42c1;">
-                <i class="fas fa-layer-group"></i> <span class="fw-medium">Groups</span>
+            <a href="manage_groups.php" class="admin-toolbar-btn admin-btn-purple">
+                <i class="fas fa-object-group"></i>
+                <span>Manage Groups</span>
             </a>
-            <a href="manage_facilities.php" class="btn btn-link text-decoration-none d-inline-flex align-items-center gap-1.5 px-2 py-0.5 rounded-pill compact-admin-link" style="font-size: 12px; color: #198754;">
-                <i class="fas fa-sliders-h"></i> <span class="fw-medium">Facility</span>
+            <a href="manage_facilities.php" class="admin-toolbar-btn admin-btn-success">
+                <i class="fas fa-building"></i>
+                <span>Facility Types</span>
             </a>
-            <a href="run_backup.php" class="btn btn-link text-decoration-none d-inline-flex align-items-center gap-1.5 px-2 py-0.5 rounded-pill compact-admin-link" style="font-size: 12px; color: #ffc107;">
-                <i class="fas fa-cloud-download-alt"></i> <span class="fw-medium">Backup</span>
+            <a href="run_backup.php" class="admin-toolbar-btn admin-btn-warning">
+                <i class="fas fa-database"></i>
+                <span>Backup Database</span>
             </a>
         </div>
-    <?php endif; ?>
+    </div>
+</div>
+<?php endif; ?>
 
-    <div class="row g-3 mb-4">
-        <div class="col-md-3">
-            <div class="card metric-card shadow-sm p-3 border-start border-primary border-4 h-100">
-                <div class="d-flex align-items-center">
-                    <div class="icon-shape bg-primary-subtle text-primary me-3"><i class="fas fa-folder-open fa-lg"></i></div>
-                    <div>
-                        <div class="text-secondary small text-uppercase font-monospace fw-bold">Total Assigned</div>
-                        <h3 class="fw-bold mb-0 text-dark"><?php echo number_format($total_assigned); ?></h3>
-                    </div>
+   <div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card metric-card metric-primary shadow-sm p-3 h-100">
+            <div class="d-flex align-items-center">
+                <div class="icon-shape icon-shape-primary me-3" style="width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                    <i class="fas fa-folder-open fa-lg"></i>
+                </div>
+                <div>
+                    <div class="text-secondary small text-uppercase fw-semibold mb-1">Total Assigned</div>
+                    <h3 class="fw-bold mb-0 text-dark"><?php echo number_format($total_assigned); ?></h3>
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card metric-card shadow-sm p-3 border-start border-warning border-4 h-100">
-                <div class="d-flex align-items-center">
-                    <div class="icon-shape bg-warning-subtle text-warning me-3"><i class="fas fa-spinner fa-spin fa-lg"></i></div>
-                    <div>
-                        <div class="text-secondary small text-uppercase font-monospace fw-bold">Under Process</div>
-                        <h3 class="fw-bold mb-0 text-dark"><?php echo number_format($total_processing); ?></h3>
-                    </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card metric-card metric-warning shadow-sm p-3 h-100">
+            <div class="d-flex align-items-center">
+                <div class="icon-shape icon-shape-warning me-3" style="width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                    <i class="fas fa-spinner fa-pulse fa-lg"></i>
+                </div>
+                <div>
+                    <div class="text-secondary small text-uppercase fw-semibold mb-1">Under Process</div>
+                    <h3 class="fw-bold mb-0 text-dark"><?php echo number_format($total_processing); ?></h3>
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card metric-card shadow-sm p-3 border-start border-success border-4 h-100">
-                <div class="d-flex align-items-center">
-                    <div class="icon-shape bg-success-subtle text-success me-3"><i class="fas fa-check-circle fa-lg"></i></div>
-                    <div>
-                        <div class="text-secondary small text-uppercase font-monospace fw-bold">Approved / Sanction</div>
-                        <h3 class="fw-bold mb-0 text-dark"><?php echo number_format($counts['approved']); ?></h3>
-                    </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card metric-card metric-success shadow-sm p-3 h-100">
+            <div class="d-flex align-items-center">
+                <div class="icon-shape icon-shape-success me-3" style="width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                    <i class="fas fa-check-circle fa-lg"></i>
+                </div>
+                <div>
+                    <div class="text-secondary small text-uppercase fw-semibold mb-1">Approved / Sanction</div>
+                    <h3 class="fw-bold mb-0 text-dark"><?php echo number_format($counts['approved']); ?></h3>
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card metric-card shadow-sm p-3 border-start border-danger border-4 h-100">
-                <div class="d-flex align-items-center">
-                    <div class="icon-shape bg-danger-subtle text-danger me-3"><i class="fas fa-times-circle fa-lg"></i></div>
-                    <div>
-                        <div class="text-secondary small text-uppercase font-monospace fw-bold">Declined / Rejected</div>
-                        <h3 class="fw-bold mb-0 text-dark"><?php echo number_format($counts['declined']); ?></h3>
-                    </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card metric-card metric-danger shadow-sm p-3 h-100">
+            <div class="d-flex align-items-center">
+                <div class="icon-shape icon-shape-danger me-3" style="width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                    <i class="fas fa-times-circle fa-lg"></i>
+                </div>
+                <div>
+                    <div class="text-secondary small text-uppercase fw-semibold mb-1">Declined / Rejected</div>
+                    <h3 class="fw-bold mb-0 text-dark"><?php echo number_format($counts['declined']); ?></h3>
                 </div>
             </div>
         </div>
-    </div> <!-- End Metrics Row -->
+    </div>
+</div>
 
-
-    <div class="d-flex flex-wrap justify-content-between align-items-end mb-3 gap-2">
-        <h5 class="fw-semibold text-secondary m-0">
-            <i class="fas fa-layer-group me-2"></i> Proposal Stage Tracker 
-            <?php if(empty($from_date)): ?>
-                <span class="small text-muted fw-normal fs-6">(Approved look up past 1 Month Sanction Date)</span>
-            <?php else: ?>
-                <span class="badge bg-info text-white font-monospace">Custom Range Applied</span>
-            <?php endif; ?>
-        </h5>
+    <div class="card shadow-sm border-0 mb-5 bg-white rounded-3">
+    <div class="card-header bg-white border-0 pt-4 px-4">
+        <div class="d-flex flex-wrap justify-content-between align-items-center">
+            <h5 class="fw-semibold text-secondary m-0">
+                <i class="fas fa-chart-line me-2 text-primary"></i> Proposal Tracker
+                <?php if(empty($from_date)): ?>
+                    <span class="small text-muted fw-normal fs-6">(Last 15 days - Sanction Date)</span>
+                <?php else: ?>
+                    <span class="badge bg-info text-white font-monospace">Custom Range Applied</span>
+                <?php endif; ?>
+            </h5>
         
-        <div class="card shadow-sm border-0 bg-white rounded-3 p-2">
-            <form method="GET" class="row gx-2 gy-1 align-items-center m-0 small">
+        <div class="date-filter-card">
+                <form method="GET" class="d-flex gap-2 align-items-center m-0">
                 <?php if(!empty($active_filter)): ?>
                     <input type="hidden" name="status_view" value="<?= htmlspecialchars($active_filter) ?>">
                 <?php endif; ?>
@@ -396,108 +611,80 @@ if ($unified_workforce_res && $unified_workforce_res->num_rows > 0) {
         </div>
     </div>
 
-    <div class="card shadow-sm border-0 mb-5 bg-white rounded-3">
-        <div class="card-body p-4">
-            <div class="d-flex flex-wrap gap-4 justify-content-between align-items-center text-center">
-                <?php 
-                  function buildStageUrl($stage_name, $from, $to) {
-                      $url = "index.php?status_view=" . urlencode($stage_name);
-                      if (!empty($from) && !empty($to)) {
-                          $url .= "&from_date=" . urlencode($from) . "&to_date=" . urlencode($to);
-                      }
-                      return $url;
-                  }
-                ?>
-                 <a href="<?= buildStageUrl('Proposal In Preparation', $from_date, $to_date) ?>" class="pipeline-node-link <?php echo ($active_filter === 'Proposal In Preparation') ? 'node-active' : ''; ?>">
-                    <div class="progress-circle-wrapper border-primary">
-                        <div class="progress-circle-inner bg-light text-primary"><span class="fw-bold fs-3"><?php echo $counts['in_prep']; ?></span></div>
-                    </div>
-                    <div class="node-label text-primary font-monospace mt-2">On Board</div>
-                </a>
-                <a href="<?= buildStageUrl('Proposal Received', $from_date, $to_date) ?>" class="pipeline-node-link <?php echo ($active_filter === 'Proposal Received') ? 'node-active' : ''; ?>">
-                    <div class="progress-circle-wrapper border-primary-subtle">
-                        <div class="progress-circle-inner bg-primary-subtle text-primary"><span class="fw-bold fs-3"><?php echo $counts['proposal_received']; ?></span></div>
-                    </div>
-                    <div class="node-label text-primary font-monospace mt-2">Prop Received</div>
-                </a>
-                <style>
-                    .style-orange-border { border-color: #fd7e14 !important; }
-                    .style-orange-bg { background-color: #ffe8cc !important; }
-                    .style-orange-text { color: #fd7e14 !important; }
-                </style>
-
-                <a href="<?= buildStageUrl('Pending', $from_date, $to_date) ?>" class="pipeline-node-link <?php echo ($active_filter === 'Pending') ? 'node-active' : ''; ?>">
-                <div class="progress-circle-wrapper style-orange-border">
-                    <div class="progress-circle-inner style-orange-text style-orange-bg">
-                    <span class="fw-bold fs-4"><?php echo $counts['pending']; ?></span>
-                    </div>
-                </div>
-                <div class="node-label font-monospace mt-2 text-dark">Pending</div>
-                </a>
-               
-                <a href="<?= buildStageUrl('Committee Memo', $from_date, $to_date) ?>" class="pipeline-node-link <?php echo ($active_filter === 'Committee Memo') ? 'node-active' : ''; ?>">
-                    <div class="progress-circle-wrapper style-purple-border">
-                        <div class="progress-circle-inner text-purple style-purple-bg"><span class="fw-bold fs-3"><?php echo $counts['committee_memo']; ?></span></div>
-                    </div>
-                    <div class="node-label font-monospace mt-2 style-purple-text">Comm. Memo</div>
-                </a>
-
-                <style>
-                    .style-purple-border { border-color: #6f42c1 !important; }
-                    .style-purple-bg { background-color: #e0cffc !important; }
-                    .style-purple-text { color: #6f42c1 !important; }
-                </style>
-
-                <a href="<?= buildStageUrl('Committee Minutes', $from_date, $to_date) ?>" class="pipeline-node-link <?php echo ($active_filter === 'Committee Minutes') ? 'node-active' : ''; ?>">
-                    <div class="progress-circle-wrapper border-warning">
-                        <div class="progress-circle-inner bg-warning-subtle text-warning"><span class="fw-bold fs-3"><?php echo $counts['committee_minutes']; ?></span></div>
-                    </div>
-                    <div class="node-label text-warning font-monospace mt-2">Comm. Min</div>
-                </a>
-                 <a href="<?= buildStageUrl('Office Note', $from_date, $to_date) ?>" class="pipeline-node-link <?php echo ($active_filter === 'Office Note') ? 'node-active' : ''; ?>">
-                    <div class="progress-circle-wrapper border-info">
-                        <div class="progress-circle-inner bg-info-subtle text-info"><span class="fw-bold fs-3"><?php echo $counts['office_note']; ?></span></div>
-                    </div>
-                    <div class="node-label text-info font-monospace mt-2">Office Note</div>
-                </a>
-                <a href="<?= buildStageUrl('Board Memo', $from_date, $to_date) ?>" class="pipeline-node-link <?php echo ($active_filter === 'Board Memo') ? 'node-active' : ''; ?>">
-                    <div class="progress-circle-wrapper border-success">
-                        <div class="progress-circle-inner bg-success-subtle text-success"><span class="fw-bold fs-3"><?php echo $counts['board_memo']; ?></span></div>
-                    </div>
-                    <div class="node-label text-success font-monospace mt-2">Board Memo</div>
-                </a>
-                <a href="<?= buildStageUrl('Board Minutes', $from_date, $to_date) ?>" class="pipeline-node-link <?php echo ($active_filter === 'Board Minutes') ? 'node-active' : ''; ?>">
-                    <div class="progress-circle-wrapper border-dark">
-                        <div class="progress-circle-inner bg-dark-subtle text-dark"><span class="fw-bold fs-3"><?php echo $counts['board_minutes']; ?></span></div>
-                    </div>
-                    <div class="node-label text-dark font-monospace mt-2">Board Min</div>
-                </a>
-                <a href="<?= buildStageUrl('Declined', $from_date, $to_date) ?>" class="pipeline-node-link <?php echo ($active_filter === 'Declined') ? 'node-active' : ''; ?>">
-                    <div class="progress-circle-wrapper border-danger">
-                        <div class="progress-circle-inner text-white bg-danger"><span class="fw-bold fs-3"><?php echo $counts['declined']; ?></span></div>
-                    </div>
-                    <div class="node-label text-danger font-monospace fw-bold mt-2">Declined</div>
-                </a>
-                <a href="<?= buildStageUrl('Approval/Sanction', $from_date, $to_date) ?>" class="pipeline-node-link <?php echo ($active_filter === 'Approval/Sanction') ? 'node-active' : ''; ?>">
-                    <div class="progress-circle-wrapper border-success-double">
-                        <div class="progress-circle-inner text-white bg-success"><span class="fw-bold fs-3"><?php echo $counts['approved']; ?></span></div>
-                    </div>
-                    <div class="node-label text-success font-monospace fw-bold mt-2">Approved</div>
-                </a>
-            </div>
-        </div>
+  <div class="card-body p-4">
+    <div class="stages-grid">
+        <!-- On Board -->
+        <a href="<?= buildStageUrl('Proposal In Preparation', $from_date, $to_date) ?>" class="stage-card stage-primary <?php echo ($active_filter === 'Proposal In Preparation') ? 'active' : ''; ?>">
+            <div class="stage-icon"><i class="fas fa-rocket"></i></div>
+            <div class="stage-count"><?php echo $counts['in_prep']; ?></div>
+            <div class="stage-label">On Board</div>
+        </a>
+        
+        <!-- Prop Received -->
+        <a href="<?= buildStageUrl('Proposal Received', $from_date, $to_date) ?>" class="stage-card stage-info <?php echo ($active_filter === 'Proposal Received') ? 'active' : ''; ?>">
+            <div class="stage-icon"><i class="fas fa-inbox"></i></div>
+            <div class="stage-count"><?php echo $counts['proposal_received']; ?></div>
+            <div class="stage-label">Received</div>
+        </a>
+        
+        <!-- Pending -->
+        <a href="<?= buildStageUrl('Pending', $from_date, $to_date) ?>" class="stage-card stage-warning <?php echo ($active_filter === 'Pending') ? 'active' : ''; ?>">
+            <div class="stage-icon"><i class="fas fa-hourglass-half"></i></div>
+            <div class="stage-count"><?php echo $counts['pending']; ?></div>
+            <div class="stage-label">Pending</div>
+        </a>
+        
+        <!-- Committee Memo -->
+        <a href="<?= buildStageUrl('Committee Memo', $from_date, $to_date) ?>" class="stage-card stage-purple <?php echo ($active_filter === 'Committee Memo') ? 'active' : ''; ?>">
+            <div class="stage-icon"><i class="fas fa-file-alt"></i></div>
+            <div class="stage-count"><?php echo $counts['committee_memo']; ?></div>
+            <div class="stage-label">Comm. Memo</div>
+        </a>
+        
+        <!-- Committee Minutes -->
+        <a href="<?= buildStageUrl('Committee Minutes', $from_date, $to_date) ?>" class="stage-card stage-orange <?php echo ($active_filter === 'Committee Minutes') ? 'active' : ''; ?>">
+            <div class="stage-icon"><i class="fas fa-clock"></i></div>
+            <div class="stage-count"><?php echo $counts['committee_minutes']; ?></div>
+            <div class="stage-label">Comm. Min</div>
+        </a>
+        
+        <!-- Office Note -->
+        <a href="<?= buildStageUrl('Office Note', $from_date, $to_date) ?>" class="stage-card stage-teal <?php echo ($active_filter === 'Office Note') ? 'active' : ''; ?>">
+            <div class="stage-icon"><i class="fas fa-sticky-note"></i></div>
+            <div class="stage-count"><?php echo $counts['office_note']; ?></div>
+            <div class="stage-label">Office Note</div>
+        </a>
+        
+        <!-- Board Memo -->
+        <a href="<?= buildStageUrl('Board Memo', $from_date, $to_date) ?>" class="stage-card stage-success <?php echo ($active_filter === 'Board Memo') ? 'active' : ''; ?>">
+            <div class="stage-icon"><i class="fas fa-chalkboard"></i></div>
+            <div class="stage-count"><?php echo $counts['board_memo']; ?></div>
+            <div class="stage-label">Board Memo</div>
+        </a>
+        
+        <!-- Board Minutes -->
+        <a href="<?= buildStageUrl('Board Minutes', $from_date, $to_date) ?>" class="stage-card stage-dark <?php echo ($active_filter === 'Board Minutes') ? 'active' : ''; ?>">
+            <div class="stage-icon"><i class="fas fa-calendar-check"></i></div>
+            <div class="stage-count"><?php echo $counts['board_minutes']; ?></div>
+            <div class="stage-label">Board Min</div>
+        </a>
+        
+        <!-- Declined -->
+        <a href="<?= buildStageUrl('Declined', $from_date, $to_date) ?>" class="stage-card stage-danger <?php echo ($active_filter === 'Declined') ? 'active' : ''; ?>">
+            <div class="stage-icon"><i class="fas fa-times-circle"></i></div>
+            <div class="stage-count"><?php echo $counts['declined']; ?></div>
+            <div class="stage-label">Declined</div>
+        </a>
+        
+        <!-- Approved -->
+        <a href="<?= buildStageUrl('Approval/Sanction', $from_date, $to_date) ?>" class="stage-card stage-success <?php echo ($active_filter === 'Approval/Sanction') ? 'active' : ''; ?>">
+            <div class="stage-icon"><i class="fas fa-check-circle"></i></div>
+            <div class="stage-count"><?php echo $counts['approved']; ?></div>
+            <div class="stage-label">Approved</div>
+        </a>
     </div>
-
-    <style>
-        .pipeline-node-link { text-decoration: none !important; display: flex; flex-direction: column; align-items: center; transition: transform 0.2s ease; flex: 1 1 90px; min-width: 85px; }
-        .pipeline-node-link:hover { transform: scale(1.08); }
-        .progress-circle-wrapper { width: 72px; height: 72px; border-radius: 50%; border: 4px solid #dee2e6; display: flex; align-items: center; justify-content: center; padding: 3px; background: #fff; transition: box-shadow 0.2s ease; }
-        .border-success-double { border: 4px double #198754 !important; }
-        .progress-circle-inner { width: 100%; height: 100%; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
-        .node-label { font-size: 0.72rem; letter-spacing: -0.3px; font-weight: 500; }
-        .node-active .progress-circle-wrapper { box-shadow: 0 0 0 3px #fff, 0 0 0 6px #0d6efd !important; }
-        .node-active .node-label { font-weight: 700 !important; text-decoration: underline; }
-    </style>
+</div>
+</div>
 
     <?php
     $queue_title = !empty($active_filter) ? $active_filter : 'All Proposal Assignments';
@@ -532,177 +719,189 @@ if ($unified_workforce_res && $unified_workforce_res->num_rows > 0) {
     }
     ?>
 
-    <div class="card shadow-sm border-0 mb-4">
-        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center border-bottom">
-            <h5 class="mb-0 fw-bold text-dark">
-                <i class="fas fa-list text-primary me-2"></i> File Queue: <span class="text-primary"><?php echo htmlspecialchars($queue_title); ?></span> 
-                <span class="badge bg-secondary ms-2 small" style="font-size:0.8rem;"><?php echo count($grouped_proposals); ?> Clients Found</span>
-            </h5>
-            <?php if (!empty($active_filter)): ?>
-                <a href="<?= htmlspecialchars($queue_close_url) ?>" class="btn btn-sm btn-light text-muted"><i class="fas fa-times me-1"></i> Close Queue</a>
-            <?php endif; ?>
-        </div>
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light text-uppercase small" style="font-size:0.75rem;">
-                    <tr>
-                        <th class="ps-4" style="width: 20%;">Assigned Date &amp; Time</th>
-                        <th style="width: 28%;">Client &amp; Profile Context</th>
-                        <th style="width: 30%;">Combined Allocation Facilities</th>
-                        <th style="width: 15%;">Reference String</th>
-                        <th style="width: 12%;">Officer Assigned</th>
-                        <th style="width: 10%;">Current Status</th>
-                    </tr>
-                </thead>
-                <tbody class="small">
-                    <?php if (!empty($grouped_proposals)): ?>
-                        <?php foreach ($grouped_proposals as $row): ?>
-                            <tr>
-                                <td class="ps-4 fw-semibold text-secondary">
-                                    <i class="far fa-clock text-primary me-1"></i>
-                                    <?php echo (!empty($row['assigned_time'])) ? date('d-M-Y h:i A', strtotime($row['assigned_time'])) : 'Timestamp Not Set'; ?>
-                                </td>
-                                <td class="ps-4 fw-semibold text-secondary">
-                                    <div class="fw-bold client-header mb-1">
-                                        <a href="more_details.php?id=<?php echo intval($row['file_rec_id']); ?>" class="text-decoration-none text-dark hover-primary">
-                                            <i class="fas fa-folder-open text-warning me-2"></i><?php echo htmlspecialchars($row['client_name'] ?? 'N/A'); ?>
-                                        </a>
-                                    </div>
-                                    <div class="text-muted small font-monospace d-flex flex-wrap gap-2">
-                                 
-                                        <span>Branch: <strong><?php echo htmlspecialchars($row['branch_name'] ?? 'N/A'); ?></strong></span>|
-                                        <span>Div: <strong class="text-purple"><?php echo htmlspecialchars($row['division'] ?? 'N/A'); ?></strong></span>
-                                    </div>
-                                </td>
-                                <td>
-                                    <div class="d-flex flex-column gap-1 mb-2 mt-1">
-                                        <?php foreach ($row['facilities'] as $fac): ?>
-                                            <div class="facility-item d-flex justify-content-between align-items-center">
-                                                <span class="fw-semibold text-secondary"><i class="fas fa-layer-group text-info me-1"></i><?= htmlspecialchars($fac['type']) ?></span>
-                                                <span class="font-monospace fw-bold text-dark">BDT <?php echo number_format($fac['amount'], 2); ?></span>
-                                            </div>
-                                        <?php endforeach; ?>
-                                    </div>
-                                    <div class="d-flex justify-content-between align-items-center px-2 pt-1 border-top small font-monospace">
-                                        <span class="text-muted text-uppercase fw-bold" style="font-size:11px;">Total Structural Load:</span>
-                                        <span class="badge bg-success font-monospace text-white fw-bold">BDT <?php echo number_format($row['group_total_amount'], 2); ?></span>
-                                    </div>
-                                </td>
-                                <td>
-                                    <span class="badge bg-dark font-monospace text-warning px-2 py-1 shadow-sm" style="font-size: 0.8rem;">
-                                        <i class="fas fa-hashtag me-1"></i><?= htmlspecialchars($row['proposal_ref']) ?>
-                                    </span>
-                                </td>
-                                <td>
-                                    <div class="d-flex align-items-center">
-                                        <div class="bg-light rounded-circle d-flex align-items-center justify-content-center me-2" style="width:28px; height:28px;"><i class="fas fa-user-tie text-secondary" style="font-size:0.75rem;"></i></div>
-                                        <span class="fw-medium text-dark"><?php echo !empty($row['officer_name']) ? htmlspecialchars($row['officer_name']) : 'System Core'; ?></span>
-                                    </div>
-                                </td>
-                                <td>
-                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill font-monospace px-2 py-1"><?php echo htmlspecialchars($row['proposal_status']); ?></span>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    <?php else: ?>
+ 
+<!-- Update Queue section to only show when a filter is selected -->
+<?php if ($show_queue && !empty($active_filter)): ?>
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center border-bottom">
+        <h5 class="mb-0 fw-bold text-dark">
+            <i class="fas fa-list text-primary me-2"></i> File Queue: <span class="text-primary"><?php echo htmlspecialchars($active_filter); ?></span> 
+            <span class="badge bg-secondary ms-2 small" style="font-size:0.8rem;"><?php echo count($matching_proposals); ?> Clients Found</span>
+        </h5>
+        <a href="index.php" class="btn btn-sm btn-light text-muted"><i class="fas fa-times me-1"></i> Close Queue</a>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light text-uppercase small" style="font-size:0.75rem;">
+                <tr>
+                    <th class="ps-4" style="width: 18%;">Assigned Date &amp; Time</th>
+                    <th style="width: 27%;">Client &amp; Profile Context</th>
+                    <th style="width: 28%;">Facility Details / Sanction Info</th>
+                    <th style="width: 15%;">Reference String</th>
+                    <th style="width: 12%;">Officer Assigned</th>
+                </tr>
+            </thead>
+            <tbody class="small">
+                <?php if (!empty($matching_proposals)): ?>
+                    <?php foreach ($matching_proposals as $row): ?>
                         <tr>
-                            <td colspan="5" class="text-center text-muted py-4">
-                                <i class="fas fa-inbox fa-2x mb-2 d-block text-opacity-25"></i> No proposal assignments found for the current queue.
+                            <td class="ps-4 fw-semibold text-secondary" style="vertical-align: middle;">
+                                <i class="far fa-clock text-primary me-1"></i>
+                                <?php echo (!empty($row['assigned_time'])) ? date('d-M-Y h:i A', strtotime($row['assigned_time'])) : 'Timestamp Not Set'; ?>
+                            </td>
+                            <td style="vertical-align: middle;">
+                                <div class="fw-bold client-header mb-1">
+                                    <a href="more_details.php?id=<?php echo intval($row['file_rec_id']); ?>" class="text-decoration-none text-dark hover-primary">
+                                        <i class="fas fa-folder-open text-warning me-2"></i><?php echo htmlspecialchars($row['client_name'] ?? 'N/A'); ?>
+                                    </a>
+                                </div>
+                                <div class="text-muted small font-monospace d-flex flex-wrap gap-2">
+                                    <?php if ($active_filter === 'Approval/Sanction' && !empty($row['sanction_letter_ref_no'])): ?>
+                                        <span><i class="fas fa-file-signature text-success me-1"></i>Sanction Ref: <strong class="text-success"><?php echo htmlspecialchars($row['sanction_letter_ref_no']); ?></strong></span>
+                                        <?php if (!empty($row['sanction_date'])): ?>
+                                            <span class="mx-1">|</span>
+                                            <span><i class="fas fa-calendar-check text-success me-1"></i>Date: <strong><?php echo date('d-M-Y', strtotime($row['sanction_date'])); ?></strong></span>
+                                        <?php endif; ?>
+                                    <?php else: ?>
+                                        <span><i class="fas fa-code-branch text-info me-1"></i>Branch: <strong><?php echo htmlspecialchars($row['branch_name'] ?? 'N/A'); ?></strong></span>
+                                        <span class="mx-1">|</span>
+                                        <span><i class="fas fa-layer-group text-purple me-1"></i>Div: <strong class="text-purple"><?php echo htmlspecialchars($row['division'] ?? 'N/A'); ?></strong></span>
+                                    <?php endif; ?>
+                                </div>
+                                <?php if ($active_filter === 'Approval/Sanction' && (!empty($row['board_meet_no']) || !empty($row['comm_meet_no']))): ?>
+                                    <div class="text-muted small font-monospace mt-1">
+                                        <?php if (!empty($row['board_meet_no'])): ?>
+                                            <span><i class="fas fa-chalkboard-user me-1"></i>Board: <?php echo htmlspecialchars($row['board_meet_no'] ?? 'N/A'); ?></span>
+                                        <?php endif; ?>
+                                        <?php if (!empty($row['comm_meet_no'])): ?>
+                                            <?php if (!empty($row['board_meet_no'])): ?> <span class="mx-1">|</span> <?php endif; ?>
+                                            <span><i class="fas fa-users me-1"></i>Committee: <?php echo htmlspecialchars($row['comm_meet_no'] ?? 'N/A'); ?></span>
+                                        <?php endif; ?>
+                                    </div>
+                                <?php endif; ?>
+                            </td>
+                            <td style="vertical-align: middle;">
+                                <?php if ($active_filter === 'Approval/Sanction'): ?>
+                                    <div class="d-flex flex-column">
+                                        <span class="fw-semibold text-success">
+                                            <i class="fas fa-check-circle text-success me-1"></i>
+                                            Sanctioned Amount: BDT <?php echo number_format(floatval($row['proposal_amount'] ?? 0), 2); ?>
+                                        </span>
+                                        <span class="text-muted small mt-1">
+                                            <i class="fas fa-tag me-1"></i>
+                                            Facility: <?php echo htmlspecialchars($row['proposal_type'] ?? 'N/A'); ?>
+                                        </span>
+                                    </div>
+                                <?php else: ?>
+                                    <div class="d-flex flex-column">
+                                        <span class="fw-semibold text-secondary">
+                                            <i class="fas fa-layer-group text-info me-1"></i>
+                                            Type: <?php echo htmlspecialchars($row['proposal_type'] ?? 'N/A'); ?>
+                                        </span>
+                                        <span class="font-monospace fw-bold text-dark mt-1">
+                                            <i class="fas fa-money-bill-wave text-success me-1"></i>
+                                            Amount: BDT <?php echo number_format(floatval($row['proposal_amount'] ?? 0), 2); ?>
+                                        </span>
+                                    </div>
+                                <?php endif; ?>
+                            </td>
+                            <td style="vertical-align: middle;">
+                                <?php if ($active_filter === 'Approval/Sanction' && !empty($row['sanction_letter_ref_no'])): ?>
+                                    <span class="badge bg-success font-monospace text-white px-2 py-1 shadow-sm" style="font-size: 0.75rem;">
+                                        <i class="fas fa-file-contract me-1"></i><?php echo htmlspecialchars($row['sanction_letter_ref_no']); ?>
+                                    </span>
+                                <?php else: ?>
+                                    <span class="badge bg-dark font-monospace text-warning px-2 py-1 shadow-sm" style="font-size: 0.75rem;">
+                                        <i class="fas fa-hashtag me-1"></i><?php echo htmlspecialchars($row['proposal_ref'] ?? 'N/A'); ?>
+                                    </span>
+                                <?php endif; ?>
+                            </td>
+                            <td style="vertical-align: middle;">
+                                <div class="d-flex align-items-center">
+                                    <div class="bg-light rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 32px; height: 32px;">
+                                        <i class="fas fa-user-tie text-secondary" style="font-size: 0.8rem;"></i>
+                                    </div>
+                                    <div>
+                                        <span class="fw-medium text-dark"><?php echo !empty($row['officer_name']) ? htmlspecialchars($row['officer_name']) : 'System Core'; ?></span>
+                                        <div class="small text-muted">
+                                            <?php echo ($active_filter === 'Approval/Sanction') ? 'Sanctioned' : 'Assigned'; ?>
+                                        </div>
+                                    </div>
+                                </div>
                             </td>
                         </tr>
-                    <?php endif; ?>
-                </tbody>
-            </table>
-        </div>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <tr>
+                        <td colspan="5" class="text-center text-muted py-4">
+                            <i class="fas fa-inbox fa-2x mb-2 d-block text-opacity-25"></i> 
+                            No proposal assignments found for <?php echo htmlspecialchars($active_filter); ?>.
+                        </td>
+                    </tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
     </div>
+</div>
+<?php endif; ?>
 
     <div class="card shadow-sm border-0 mb-4 bg-white">
-        <div class="card-header bg-dark text-white fw-bold d-flex justify-content-between align-items-center py-2" style="font-size:14px; cursor: pointer;" onclick="toggleWorkforcePanel()">
-            <span><i class="fas fa-network-wired text-warning me-2"></i> Officer of Current Client and Ready to Take Assignments</span>
-            <span id="panel-toggle-icon"><i class="fas fa-chevron-down"></i> Click to Expand</span>
-        </div>
-        <div id="workforce-panel-body" class="card-body bg-light-subtle d-none border-bottom">
-            <?php if (!empty($workforce_hierarchy)): ?>
-                <?php foreach ($workforce_hierarchy as $group_title => $g_data): ?>
-                    <div class="card mb-4 border shadow-sm border-light bg-white">
-                        <div class="card-header group-card-header py-2 px-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
-                            <span class="fw-bold text-white fs-6">
-                                <i class="fas fa-users text-warning me-2"></i> Group Name: <?= htmlspecialchars($group_title) ?>
-                            </span>
-                            <span class="badge bg-light text-dark font-monospace border shadow-sm px-3 py-1.5" style="font-size:12px;">
-                                <i class="fas fa-user-shield me-1 text-primary"></i> Team Leader: <?= htmlspecialchars($g_data['leader']) ?>
-                            </span>
-                        </div>
-                        
-                        <div class="table-responsive">
-                            <table class="table table-sm table-striped table-hover mb-0 small align-middle m-0">
-                                <thead class="table-light text-muted" style="font-size:12px;">
-                                    <tr>
-                                        <th class="ps-3" style="width:30%;">Dealing Officer</th>
-                                        <th class="text-center" style="width:15%;">Active Load Total</th>
-                                        <th style="width:55%;">Currently Dealing With</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                                <?php 
-                                            $has_members = false;
-                                            foreach ($g_data['roster'] as $staff): 
-                                                // Extra check to verify the loop bypasses the leader completely
-                                                if ($group_title !== 'Independent Staff / General Pool' && $staff['full_name'] === $g_data['leader']) {
-                                                    continue;
-                                                }
-                                                $has_members = true;
-                                                     ?>
-                                        <tr>
-                                            <td class="ps-3 py-2">
-                                                <div class="fw-bold text-dark"><?= htmlspecialchars(!empty($staff['full_name']) ? $staff['full_name'] : $staff['username']) ?></div>
-                                                <div class="text-muted font-monospace" style="font-size:10px;">ID Code: <?= htmlspecialchars($staff['employee_id'] ?? 'N/A') ?></div>
-                                            </td>
-                                            <td class="text-center">
-                                                <?php if ($staff['active_count'] > 0): ?>
-                                                    <span class="badge bg-warning text-dark rounded-pill px-3 py-1 font-monospace fw-bold">
-                                                        <?= $staff['active_count'] ?> Files
-                                                    </span>
-                                                <?php else: ?>
-                                                    <span class="badge bg-success text-white rounded-pill px-3 py-1 font-monospace fw-bold">
-                                                        0 Files
-                                                    </span>
-                                                <?php endif; ?>
-                                            </td>
-                                            <td>
-                                                <?php 
-                                                if (!empty($staff['client_list'])) {
-                                                    $clients = explode('||', $staff['client_list']);
-                                                    foreach($clients as $c_item) {
-                                                        if(!empty(trim($c_item))) {
-                                                            echo '<span class="badge bg-primary-subtle text-primary border border-primary-subtle me-1 my-1 px-2 py-1 shadow-sm d-inline-block" style="font-size:11px;">' . htmlspecialchars($c_item) . '</span>';
-                                                        }
-                                                    }
-                                                } else {
-                                                    echo '<span class="text-success font-monospace small"><i class="fas fa-circle-check text-success me-1"></i>Ready for Assignment</span>';
-                                                }
-                                                ?>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                    <?php if (!$has_members): ?>
-                                        <tr>
-                                            <td colspan="3" class="text-center py-3 text-muted italic">No standard operators mapped into this specific cluster group yet.</td>
-                                        </tr>
-                                    <?php endif; ?>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                <?php endforeach; ?>
-            <?php else: ?>
-                <div class="text-center text-muted py-5 bg-white border rounded shadow-sm">
-                    <i class="fas fa-users-slash fa-3x mb-3 text-black-50 opacity-25"></i>
-                    <p class="mb-0 fw-semibold">No operational group parameters or workforce logs located inside the database matrix.</p>
-                </div>
-            <?php endif; ?>
-        </div>
+    <div class="card-header bg-dark text-white fw-bold d-flex justify-content-between align-items-center py-2" style="font-size:14px; cursor: pointer;" onclick="toggleWorkforcePanel()">
+        <span><i class="fas fa-network-wired text-warning me-2"></i> Officers & Current Assignments</span>
+        <span id="panel-toggle-icon"><i class="fas fa-chevron-down"></i> Click to Expand</span>
     </div>
+    <div id="workforce-panel-body" class="card-body bg-light-subtle d-none border-bottom">
+        <?php if (!empty($workforce_hierarchy)): ?>
+            <?php foreach ($workforce_hierarchy as $group_title => $g_data): ?>
+                <div class="card mb-4 border shadow-sm border-light bg-white">
+                    <div class="card-header group-card-header py-2 px-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+                        <span class="fw-bold text-white fs-6">
+                            <i class="fas fa-users text-warning me-2"></i> Group: <?= htmlspecialchars($group_title) ?>
+                        </span>
+                        <span class="badge bg-light text-dark font-monospace border shadow-sm px-3 py-1.5" style="font-size:12px;">
+                            <i class="fas fa-user-shield me-1 text-primary"></i> Team Leader: <?= htmlspecialchars($g_data['leader']) ?>
+                        </span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped table-hover mb-0 small align-middle m-0">
+                            <thead class="table-light text-muted" style="font-size:12px;">
+                                <tr>
+                                    <th class="ps-3" style="width:30%;">Dealing Officer</th>
+                                    <th class="text-center" style="width:15%;">Active Load</th>
+                                    <th style="width:55%;">Currently Assigned Clients</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php 
+                                $has_members = false;
+                                foreach ($g_data['roster'] as $staff): 
+                                    if ($staff['full_name'] === $g_data['leader']) {
+                                        continue;
+                                    }
+                                    $has_members = true;
+                                ?>
+                                    <tr>
+                                        <td class="ps-3 py-2">
+                                            <div class="fw-bold text-dark"><?= htmlspecialchars(!empty($staff['full_name']) ? $staff['full_name'] : $staff['username']) ?></div>
+                                            <div class="text-muted font-monospace" style="font-size:10px;">ID: <?= htmlspecialchars($staff['employee_id'] ?? 'N/A') ?></div>
+                                         </td>
+                                        <td class="text-center">...</td>
+                                        <td>...</td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+        <?php else: ?>
+            <div class="text-center text-muted py-5 bg-white border rounded shadow-sm">
+                <i class="fas fa-users-slash fa-3x mb-3 text-black-50 opacity-25"></i>
+                <p class="mb-0 fw-semibold">No operational group parameters or workforce logs found.</p>
+            </div>
+        <?php endif; ?>
+    </div>
+</div>
 </div>
 
 <?php include 'footer.php'; ?>

@@ -402,9 +402,9 @@ $ledger_list = $conn->query($q_detailed_ledger);
         <!-- Proposal Refs Count -->
         <div class="col-md-3 col-sm-6">
             <div class="summary-stat p-3 h-100 border-start border-primary border-4">
-                <div class="metric-label">No. of Proposal Refs</div>
+                <div class="metric-label">No. of Proposal</div>
                 <div class="metric-value font-monospace"><?= number_format($prop_metrics['total_proposals']) ?></div>
-                <div class="small text-muted">Unique proposal reference numbers</div>
+                <div class="small text-muted">Received From Branch</div>
             </div>
         </div>
         <!-- Proposal Amount -->
@@ -412,15 +412,15 @@ $ledger_list = $conn->query($q_detailed_ledger);
             <div class="summary-stat p-3 h-100 border-start border-info border-4">
                 <div class="metric-label">Amount of Proposal</div>
                 <div class="metric-value font-monospace text-truncate" style="font-size:1.35rem; padding-top: 5px;">BDT <?= number_format($prop_metrics['total_proposal_amt'] ?? 0, 2) ?></div>
-                <div class="small text-muted">Pipeline value tracking</div>
+                <div class="small text-muted">Total Proposal Amount</div>
             </div>
         </div>
         <!-- Sanction Ref Count -->
         <div class="col-md-3 col-sm-6">
             <div class="summary-stat p-3 h-100 border-start border-success border-4">
-                <div class="metric-label">No. of Sanction Refs</div>
+                <div class="metric-label">No. of Sanction</div>
                 <div class="metric-value font-monospace text-success"><?= number_format($sanc_metrics['total_sanctions']) ?></div>
-                <div class="small text-muted">Unique sanction letter references</div>
+                <div class="small text-muted">By Head Office</div>
             </div>
         </div>
         <!-- Sanction Amount -->
@@ -428,7 +428,7 @@ $ledger_list = $conn->query($q_detailed_ledger);
             <div class="summary-stat p-3 h-100 border-start border-warning border-4">
                 <div class="metric-label">Amount of Sanction</div>
                 <div class="metric-value font-monospace text-dark text-truncate" style="font-size:1.35rem; padding-top: 5px;">BDT <?= number_format($sanc_metrics['total_sanction_amt'] ?? 0, 2) ?></div>
-                <div class="small text-muted">Total Sanctioned Volume</div>
+                <div class="small text-muted">Total Sanctioned Amount</div>
             </div>
         </div>
     </div>
@@ -479,7 +479,7 @@ $ledger_list = $conn->query($q_detailed_ledger);
                     <div class="section-panel h-100">
                         <div class="card-header py-3 bg-light">
                             <div class="fw-bold text-success"><i class="fas fa-check-circle me-2"></i>Funded</div>
-                            <div class="small text-muted">Sanction refs and amounts grouped by funded facility type</div>
+                            <div class="small text-muted">Sanction amount grouped by funded facility type</div>
                         </div>
                         <div class="table-responsive">
                             <table class="table summary-table table-hover align-middle mb-0">
@@ -511,7 +511,7 @@ $ledger_list = $conn->query($q_detailed_ledger);
                     <div class="section-panel h-100">
                         <div class="card-header py-3 bg-light">
                             <div class="fw-bold text-dark"><i class="fas fa-ban me-2"></i>Non funded</div>
-                            <div class="small text-muted">Sanction refs and amounts grouped by non-funded facility type</div>
+                            <div class="small text-muted">Sanction amount grouped by non-funded facility type</div>
                         </div>
                         <div class="table-responsive">
                             <table class="table summary-table table-hover align-middle mb-0">
@@ -620,7 +620,7 @@ $ledger_list = $conn->query($q_detailed_ledger);
     </div>
 
     <!-- COMPREHENSIVE COMPLIANCE AUDIT LEDGER -->
-    <div class="card shadow-sm border-0 bg-white">
+    <!-- <div class="card shadow-sm border-0 bg-white">
         <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
             <h5 class="mb-0 fw-bold text-dark"><i class="fas fa-list-alt text-success me-2"></i>Detailed Facility Ledger</h5>
             <span class="text-muted small">Generated on: <strong><?= date('d-M-Y h:i A') ?></strong></span>
@@ -681,7 +681,7 @@ $ledger_list = $conn->query($q_detailed_ledger);
                 </tbody>
             </table>
         </div>
-    </div>
+    </div> -->
 
 </div>
 
