@@ -151,18 +151,22 @@ if ($overdue_res && $overdue_res->num_rows > 0) {
     }
 }
 
+// ================= FIXED MAIN QUERY - EXCLUDE OLD APPROVAL/SANCTION =================
 $query = "SELECT 
-            GROUP_CONCAT(pa.id SEPARATOR '||') AS composite_ids,
+            pa.id,
             pa.proposal_ref,
             pa.proposal_status,
             pa.remarks,
+            pa.assigned_date,
             o.client,
             o.file_no,
             o.branch_name,
             o.division,
             o.id AS file_rec_id,
             u.full_name AS processing_officer,
-            GROUP_CONCAT(CONCAT(pa.proposal_type, '::', pa.proposal_amount) SEPARATOR '||') AS structural_facilities
+            pa.proposal_type,
+            pa.proposal_amount,
+            pa.facility_group
           FROM proposal_assignments pa
           JOIN office_files o ON pa.file_id = o.id
           LEFT JOIN users u ON pa.user_id = u.id
@@ -177,8 +181,45 @@ if (!empty($assignment_date_condition)) {
     $query .= $assignment_date_condition;
 }
 
-$query .= " GROUP BY pa.proposal_ref, pa.proposal_status, pa.file_id ORDER BY pa.id DESC";
+// ===== FIX: Exclude Approval/Sanction records older than 15 days =====
+$query .= " AND NOT (pa.proposal_status = 'Approval/Sanction' 
+            AND EXISTS (SELECT 1 FROM file_facilities ff 
+                        WHERE ff.file_record_id = o.id 
+                        AND ff.sanction_date <= DATE_SUB(CURDATE(), INTERVAL 15 DAY)))";
+
+$query .= " ORDER BY pa.assigned_date DESC";
+
 $assignments_res = $conn->query($query);
+
+// Group assignments by proposal_ref for display
+$grouped_assignments = [];
+if ($assignments_res && $assignments_res->num_rows > 0) {
+    while ($row = $assignments_res->fetch_assoc()) {
+        $ref = $row['proposal_ref'];
+        if (!isset($grouped_assignments[$ref])) {
+            $grouped_assignments[$ref] = [
+                'proposal_ref' => $row['proposal_ref'],
+                'proposal_status' => $row['proposal_status'],
+                'remarks' => $row['remarks'],
+                'client' => $row['client'],
+                'file_no' => $row['file_no'],
+                'branch_name' => $row['branch_name'],
+                'division' => $row['division'],
+                'file_rec_id' => $row['file_rec_id'],
+                'processing_officer' => $row['processing_officer'],
+                'assigned_date' => $row['assigned_date'],
+                'facilities' => [],
+                'composite_ids' => []
+            ];
+        }
+        $grouped_assignments[$ref]['facilities'][] = [
+            'type' => $row['proposal_type'],
+            'amount' => floatval($row['proposal_amount']),
+            'group' => $row['facility_group']
+        ];
+        $grouped_assignments[$ref]['composite_ids'][] = $row['id'];
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -196,6 +237,10 @@ $assignments_res = $conn->query($query);
         .facility-item { font-size: 0.82rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px 8px; }
         .table-responsive-custom { width: 100%; overflow-x: auto; }
         .table-responsive-custom table { min-width: 1100px; }
+        .text-line-through {
+            text-decoration: line-through;
+            opacity: 0.7;
+        }
     </style>
 </head>
 <body class="bg-light">
@@ -283,7 +328,7 @@ $assignments_res = $conn->query($query);
                                     <td><span class="badge bg-dark font-monospace"><?= htmlspecialchars($overdue_row['proposal_ref']) ?></span></td>
                                     <td class="font-monospace text-secondary"><?= htmlspecialchars($overdue_row['sanction_ref'] ?? 'N/A') ?></td>
                                     <td><?= !empty($overdue_row['sanction_date']) ? date('d-M-Y', strtotime($overdue_row['sanction_date'])) : 'N/A' ?></td>
-                                    <td class="text-center fw-bold text-danger font-monospace"><?= number_format($overdue_row['days_since_sanction'] ?? 0) ?></td>
+                                    <td class="text-center fw-bold text-danger font-monospace"><?= number_format($overdue_row['days_since_sanction'] ?? 0) ?> </td>
                                 </tr>
                             <?php endforeach; ?>
                         <?php else: ?>
@@ -311,8 +356,15 @@ $assignments_res = $conn->query($query);
                         </tr>
                     </thead>
                     <tbody>
-                        <?php if ($assignments_res && $assignments_res->num_rows > 0): ?>
-                            <?php while ($row = $assignments_res->fetch_assoc()): ?>
+                        <?php if (!empty($grouped_assignments)): ?>
+                            <?php foreach ($grouped_assignments as $row): ?>
+                                <?php 
+                                $total_calculated_sum = 0;
+                                foreach ($row['facilities'] as $fac) {
+                                    $total_calculated_sum += $fac['amount'];
+                                }
+                                $composite_ids_str = implode(',', $row['composite_ids']);
+                                ?>
                                 <tr>
                                     <td class="ps-4 py-3">
                                         <div class="fw-bold client-header mb-1">
@@ -322,25 +374,21 @@ $assignments_res = $conn->query($query);
                                         </div>
                                         <div class="text-muted small font-monospace d-flex flex-wrap gap-2">
                                             <span>Branch: <strong><?= htmlspecialchars($row['branch_name']); ?></strong></span>|
-                                            
+                                            <span>File No: <strong><?= htmlspecialchars($row['file_no']); ?></strong></span>|
+                                            <span>Division: <strong><?= htmlspecialchars($row['division']); ?></strong></span>
+                                        </div>
+                                        <div class="text-muted small mt-1">
+                                            <i class="far fa-calendar-alt me-1"></i>Assigned: <?= date('d-M-Y h:i A', strtotime($row['assigned_date'])) ?>
                                         </div>
                                     </td>
                                     <td>
                                         <div class="d-flex flex-column gap-2">
-                                            <?php 
-                                            $total_calculated_sum = 0;
-                                            $fac_array = explode('||', $row['structural_facilities']);
-                                            foreach ($fac_array as $fac_raw) {
-                                                $fac_parts = explode('::', $fac_raw);
-                                                $fac_name  = $fac_parts[0] ?? 'Unknown';
-                                                $fac_amt   = floatval($fac_parts[1] ?? 0);
-                                                $total_calculated_sum += $fac_amt;
-                                                ?>
+                                            <?php foreach ($row['facilities'] as $fac): ?>
                                                 <div class="facility-item d-flex justify-content-between align-items-center">
-                                                    <span class="fw-semibold text-secondary"><i class="fas fa-layer-group text-info me-1"></i><?= htmlspecialchars($fac_name); ?></span>
-                                                    <span class="font-monospace fw-bold text-dark">BDT <?= number_format($fac_amt, 2); ?></span>
+                                                    <span class="fw-semibold text-secondary"><i class="fas fa-layer-group text-info me-1"></i><?= htmlspecialchars($fac['type']); ?></span>
+                                                    <span class="font-monospace fw-bold text-dark">BDT <?= number_format($fac['amount'], 2); ?></span>
                                                 </div>
-                                            <?php } ?>
+                                            <?php endforeach; ?>
                                             <div class="d-flex justify-content-between align-items-center px-2 pt-1 border-top small font-monospace">
                                                 <span class="text-muted text-uppercase fw-bold" style="font-size:11px;">Total Structural Load:</span>
                                                 <span class="badge bg-success font-monospace text-white fw-bold">BDT <?= number_format($total_calculated_sum, 2); ?></span>
@@ -356,18 +404,17 @@ $assignments_res = $conn->query($query);
                                         <span class="badge bg-dark font-monospace text-warning px-2 py-1 shadow-sm" style="font-size: 0.8rem;">
                                             <i class="fas fa-hashtag me-1"></i><?= htmlspecialchars($row['proposal_ref']); ?>
                                         </span>
-                                    </td>
+                                     </td>
                                     <td>
                                         <div class="d-flex align-items-center text-dark">
                                             <i class="fas fa-user-tie text-secondary me-2"></i>
                                             <span class="small fw-medium"><?= htmlspecialchars($row['processing_officer'] ?? 'System Core'); ?></span>
                                         </div>
-                                    </td>
+                                     </td>
                                     <td class="text-center pe-4">
-                                        
                                         <?php if ($row['proposal_status'] === 'Proposal In Preparation'): ?>
                                             <form method="POST" class="d-inline-block w-100">
-                                                <input type="hidden" name="assignment_ids" value="<?= htmlspecialchars($row['composite_ids']); ?>">
+                                                <input type="hidden" name="assignment_ids" value="<?= htmlspecialchars($composite_ids_str); ?>">
                                                 <input type="hidden" name="proposal_ref" value="<?= htmlspecialchars($row['proposal_ref']); ?>">
                                                 <input type="hidden" name="update_status" value="1">
                                                 <input type="hidden" name="proposal_status" value="Proposal Received">
@@ -383,15 +430,15 @@ $assignments_res = $conn->query($query);
                                             </div>
                                         <?php else: ?>
                                             <form method="POST" class="workflow-status-form d-inline-block w-100">
-                                                <input type="hidden" name="assignment_ids" value="<?= htmlspecialchars($row['composite_ids']); ?>">
+                                                <input type="hidden" name="assignment_ids" value="<?= htmlspecialchars($composite_ids_str); ?>">
                                                 <input type="hidden" name="proposal_ref" value="<?= htmlspecialchars($row['proposal_ref']); ?>">
                                                 <input type="hidden" name="update_status" value="1">
                                                 
                                                 <select name="proposal_status" 
-        class="form-select form-select-sm border-primary fw-semibold text-primary font-monospace shadow-sm workflow-status-select" 
-        data-file-id="<?= $row['file_rec_id']; ?>" 
-        onchange="handleStatusChange(this)" 
-        style="font-size:0.78rem;">
+                                                        class="form-select form-select-sm border-primary fw-semibold text-primary font-monospace shadow-sm workflow-status-select" 
+                                                        data-file-id="<?= $row['file_rec_id']; ?>" 
+                                                        onchange="handleStatusChange(this)" 
+                                                        style="font-size:0.78rem;">
                                                     <?php
                                                     $stages = [
                                                         "Proposal Received", "Pending", "Committee Memo", "Committee Minutes", "Office Note", "Board Memo", 
@@ -424,7 +471,7 @@ $assignments_res = $conn->query($query);
                                             <div class="pt-2 border-top border-light mt-2 d-flex justify-content-end">
                                                 <form method="POST" onsubmit="return confirm('Confirm permanent deletion of this referenced proposal parameter track?');">
                                                     <input type="hidden" name="action_type" value="delete_assignment">
-                                                    <input type="hidden" name="assignment_ids" value="<?= htmlspecialchars($row['composite_ids']); ?>">
+                                                    <input type="hidden" name="assignment_ids" value="<?= htmlspecialchars($composite_ids_str); ?>">
                                                     <button type="submit" class="btn btn-link btn-sm text-danger p-0 m-0 text-decoration-none small" style="font-size:11px;">
                                                         <i class="fas fa-trash-alt me-1"></i>Delete Assignment
                                                     </button>
@@ -433,12 +480,12 @@ $assignments_res = $conn->query($query);
                                         <?php endif; ?>
                                     </td>
                                 </tr>
-                            <?php endwhile; ?>
+                            <?php endforeach; ?>
                         <?php else: ?>
                             <tr>
                                 <td colspan="5" class="text-center text-muted p-5 bg-white">
                                     <i class="fas fa-folder-open fa-3x text-light mb-3"></i><br>
-                                    No records found matching current parameters.
+                                    No active records found. Approval/Sanction records older than 15 days are archived.
                                 </td>
                             </tr>
                         <?php endif; ?>
@@ -475,7 +522,6 @@ function toggleRemarksInput(element) {
         }
     }
 }
-
 </script>
 </body>
 </html>
