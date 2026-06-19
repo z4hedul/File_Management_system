@@ -164,7 +164,7 @@ $isAdmin = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin');
                         <i class="fas fa-search text-warning small"></i> 
                         <span>Search File</span>
                     </a>
-                </li>
+                 </li>
             </ul>
 
             <div class="d-flex align-items-center flex-wrap gap-2">

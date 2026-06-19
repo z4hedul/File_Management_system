@@ -52,8 +52,14 @@ if ($lookup_res && $lookup_res->num_rows > 0) {
     }
 }
 
-// 4. Handle Form Post Commit Payload matching destination tables attributes
+// 4. Handle Form Post Commit Payload
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_proposal'])) {
+    
+    // Debug output - Remove after testing
+    // echo '<pre>POST DATA: '; print_r($_POST); echo '</pre>';
+    // echo '<pre>FILES DATA: '; print_r($_FILES); echo '</pre>';
+    // exit;
+    
     $file_id             = intval($_POST['file_id'] ?? 0);
     $user_id             = intval($_POST['user_id'] ?? 0);
     $proposal_status     = 'Proposal In Preparation'; 
@@ -97,6 +103,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_proposal'])) {
             }
             $dup_check->close();
 
+            // Start transaction
+            $conn->begin_transaction();
+
             // Loop through each submitted facility item row 
             $inserted_count = 0;
             foreach ($proposal_types as $index => $p_type) {
@@ -110,6 +119,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_proposal'])) {
 
                 // Handle "Others" branch flow per specific index
                 if ($proposal_type === 'Others') {
+                    // Get the custom values from the other arrays
                     $p_type_other  = isset($proposal_types_other[$index]) ? trim($proposal_types_other[$index]) : '';
                     $p_group_other = isset($proposal_groups_other[$index]) ? trim($proposal_groups_other[$index]) : '';
 
@@ -117,14 +127,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_proposal'])) {
                         $proposal_type = $p_type_other;
                         $facility_group = $p_group_other;
 
-                        // Save new dynamic metadata lookup options securely
+                        // Check if the custom facility type already exists in facilities_type table
                         $chk_lookup = $conn->prepare("SELECT id FROM facilities_type WHERE facility_name = ?");
                         $chk_lookup->bind_param("s", $proposal_type);
                         $chk_lookup->execute();
-                        if ($chk_lookup->get_result()->num_rows === 0) {
+                        $lookup_result = $chk_lookup->get_result();
+                        
+                        if ($lookup_result->num_rows === 0) {
+                            // Insert new facility type into facilities_type table
                             $ins_lookup = $conn->prepare("INSERT INTO facilities_type (facility_name, facility_group, is_active) VALUES (?, ?, 1)");
                             $ins_lookup->bind_param("ss", $proposal_type, $facility_group);
-                            $ins_lookup->execute();
+                            if (!$ins_lookup->execute()) {
+                                throw new Exception("Failed to insert facility type: " . $ins_lookup->error);
+                            }
                             $ins_lookup->close();
                         }
                         $chk_lookup->close();
@@ -141,16 +156,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_proposal'])) {
                     }
                 }
 
-                // Log the record to the assignments ledger map matching layout fields
+                // Log the record to the assignments ledger - INSERT INTO proposal_assignments
                 $stmt = $conn->prepare("INSERT INTO proposal_assignments (file_id, user_id, proposal_status, proposal_type, facility_group, proposal_amount, proposal_ref) VALUES (?, ?, ?, ?, ?, ?, ?)");
                 $stmt->bind_param("iisssds", $file_id, $user_id, $proposal_status, $proposal_type, $facility_group, $proposal_amount, $proposal_ref);
+                
                 if ($stmt->execute()) {
                     $inserted_count++;
+                } else {
+                    throw new Exception("Failed to insert into proposal_assignments: " . $stmt->error);
                 }
                 $stmt->close();
             }
 
+            // Commit transaction if all inserts were successful
             if ($inserted_count > 0) {
+                $conn->commit();
                 $status_message = '
                 <div class="alert alert-success alert-dismissible fade show shadow-sm border-start border-success border-3" role="alert">
                     <i class="fas fa-check-circle me-2"></i> <strong>Assignment Logged:</strong> ' . $inserted_count . ' facility tracking records initialized under reference signature: <span class="font-monospace fw-bold text-dark">' . htmlspecialchars($proposal_ref) . '</span>
@@ -169,10 +189,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_proposal'])) {
                 $preset_file_id = 0;
                 $preset_client_name = $preset_file_no = $preset_division = $preset_branch_name = $preset_cabinet_name = $preset_shelf_name = '';
             } else {
+                $conn->rollback();
                 throw new Exception("No valid allocation structural item fields were completely evaluated or written onto database layers.");
             }
 
         } catch (Exception $e) {
+            $conn->rollback();
             $status_message = '
             <div class="alert alert-danger alert-dismissible fade show shadow-sm border-start border-danger border-3" role="alert">
                 <i class="fas fa-ban me-2"></i> <strong>Exception Encountered:</strong> ' . htmlspecialchars($e->getMessage()) . '
@@ -237,7 +259,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_proposal'])) {
                     <h5 class="mb-0 fw-bold">Assignment Parameters Configuration Mapping</h5>
                 </div>
                 <div class="card-body p-4">
-                    <form method="POST" action="">
+                    <form method="POST" action="" id="assignForm">
                         
                         <input type="hidden" name="file_id" id="file_id" value="<?= intval($preset_file_id); ?>">
 
@@ -454,9 +476,43 @@ function attachAmountListeners() {
         input.addEventListener('input', function() {
             updateAmountWords(this);
         });
-        // Trigger initial update if there's a value
         if (input.value && parseFloat(input.value) > 0) {
             updateAmountWords(input);
+        }
+    });
+}
+
+// Function to ensure Others fields are properly named with correct indices
+function fixOthersIndices() {
+    const rows = document.querySelectorAll('.facility-row-entry');
+    rows.forEach((row, idx) => {
+        const typeSelect = row.querySelector('.proposal-type-selector');
+        const othersContainer = row.querySelector('.others-container');
+        const otherTypeInput = row.querySelector('.proposal-type-other');
+        const otherGroupSelect = row.querySelector('.proposal-group-other');
+        
+        if (typeSelect && typeSelect.value === 'Others') {
+            if (othersContainer) othersContainer.style.display = 'block';
+            if (otherTypeInput) {
+                otherTypeInput.setAttribute('required', 'required');
+                otherTypeInput.name = `proposal_type_other[${idx}]`;
+            }
+            if (otherGroupSelect) {
+                otherGroupSelect.setAttribute('required', 'required');
+                otherGroupSelect.name = `proposal_group_other[${idx}]`;
+            }
+        } else {
+            if (othersContainer) othersContainer.style.display = 'none';
+            if (otherTypeInput) {
+                otherTypeInput.removeAttribute('required');
+                otherTypeInput.name = `proposal_type_other[${idx}]`;
+                otherTypeInput.value = '';
+            }
+            if (otherGroupSelect) {
+                otherGroupSelect.removeAttribute('required');
+                otherGroupSelect.name = `proposal_group_other[${idx}]`;
+                otherGroupSelect.value = '';
+            }
         }
     });
 }
@@ -471,7 +527,7 @@ document.addEventListener("DOMContentLoaded", function() {
     // Initial attachment of amount listeners
     attachAmountListeners();
 
-    // Fetch dynamic prefix tracking metrics right at execution initialization
+    // Fetch dynamic prefix tracking metrics
     const initialFileId = fileIdInput.value;
     if (initialFileId && initialFileId !== "0") {
         fetch(`get_file_meta.php?id=${initialFileId}`)
@@ -483,76 +539,103 @@ document.addEventListener("DOMContentLoaded", function() {
             }).catch(err => { console.log("Prefix metadata hook tracking ready."); });
     }
 
-    // Delegation handler event layout monitoring for custom inputs setup
+    // Delegation handler for custom inputs setup
     masterContainer.addEventListener("change", function(e) {
         if (e.target && e.target.classList.contains("proposal-type-selector")) {
             const parentRow = e.target.closest(".facility-row-entry");
             const othersBox = parentRow.querySelector(".others-container");
             const otherText = parentRow.querySelector(".proposal-type-other");
             const otherGroup = parentRow.querySelector(".proposal-group-other");
+            
+            // Get the current row index
+            const rows = document.querySelectorAll('.facility-row-entry');
+            const currentIndex = Array.from(rows).indexOf(parentRow);
 
             if (e.target.value === "Others") {
                 othersBox.style.display = "block";
                 otherText.setAttribute("required", "required");
                 otherGroup.setAttribute("required", "required");
+                // Set proper name with index
+                otherText.name = `proposal_type_other[${currentIndex}]`;
+                otherGroup.name = `proposal_group_other[${currentIndex}]`;
             } else {
                 othersBox.style.display = "none";
                 otherText.removeAttribute("required");
                 otherGroup.removeAttribute("required");
                 otherText.value = "";
                 otherGroup.value = "";
+                otherText.name = `proposal_type_other[${currentIndex}]`;
+                otherGroup.name = `proposal_group_other[${currentIndex}]`;
             }
         }
     });
 
-    // Plus icon trigger logic: Clones the first entry structural model row cleanly
+    // Add new facility row
     addRowBtn.addEventListener("click", function() {
         const structuralRows = masterContainer.querySelectorAll(".facility-row-entry");
         const baseTargetRow = structuralRows[0];
         const clonedRow = baseTargetRow.cloneNode(true);
-
-        // Reset configuration layout elements inside the clone container
-        clonedRow.querySelector(".proposal-type-selector").value = "";
-        const amountInput = clonedRow.querySelector("input[type='number']");
-        amountInput.value = "";
         
-        // Reset amount word display
+        // Clear all input values
+        const typeSelector = clonedRow.querySelector(".proposal-type-selector");
+        if (typeSelector) typeSelector.value = "";
+        
+        const amountInput = clonedRow.querySelector(".amount-input");
+        if (amountInput) amountInput.value = "";
+        
+        // Reset amount display
         const amountDisplay = clonedRow.querySelector(".amount-word-display");
-        amountDisplay.style.display = "none";
+        if (amountDisplay) amountDisplay.style.display = "none";
+        
         const amountWordsSpan = clonedRow.querySelector(".amount-words");
         if (amountWordsSpan) amountWordsSpan.textContent = "Zero Taka Only";
         
-        const subOthersBox = clonedRow.querySelector(".others-container");
-        subOthersBox.style.display = "none";
+        // Reset others container
+        const othersBox = clonedRow.querySelector(".others-container");
+        if (othersBox) othersBox.style.display = "none";
         
-        const subOtherText = clonedRow.querySelector(".proposal-type-other");
-        const subOtherGroup = clonedRow.querySelector(".proposal-group-other");
-        subOtherText.removeAttribute("required");
-        subOtherGroup.removeAttribute("required");
-        subOtherText.value = "";
-        subOtherGroup.value = "";
+        const otherText = clonedRow.querySelector(".proposal-type-other");
+        const otherGroup = clonedRow.querySelector(".proposal-group-other");
+        if (otherText) {
+            otherText.removeAttribute("required");
+            otherText.value = "";
+        }
+        if (otherGroup) {
+            otherGroup.removeAttribute("required");
+            otherGroup.value = "";
+        }
 
-        // Unhide delete tracking button framework on duplicated iterations
+        // Show remove button
         const deleteBtn = clonedRow.querySelector(".remove-facility-btn");
-        deleteBtn.classList.remove("d-none");
+        if (deleteBtn) deleteBtn.classList.remove("d-none");
 
         masterContainer.appendChild(clonedRow);
         
-        // Attach event listener to the new amount input
-        amountInput.addEventListener('input', function() {
-            updateAmountWords(this);
-        });
+        // Fix all indices after adding new row
+        fixOthersIndices();
+        
+        // Attach event listener to new amount input
+        if (amountInput) {
+            amountInput.addEventListener('input', function() {
+                updateAmountWords(this);
+            });
+        }
     });
 
-    // Trash row deletion monitoring framework row action
+    // Remove facility row
     masterContainer.addEventListener("click", function(e) {
         if (e.target && e.target.closest(".remove-facility-btn")) {
             const functionalRows = masterContainer.querySelectorAll(".facility-row-entry");
             if (functionalRows.length > 1) {
                 e.target.closest(".facility-row-entry").remove();
+                // Fix indices after removal
+                fixOthersIndices();
             }
         }
     });
+    
+    // Initialize all Others indices on page load
+    fixOthersIndices();
 });
 </script>
 <script src="assets/js/bootstrap.bundle.min.js"></script>

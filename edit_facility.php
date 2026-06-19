@@ -3,6 +3,7 @@ session_start();
 ob_start();
 include 'db.php';
 include 'header.php';
+
 if (!isset($_SESSION['loggedin'])) {
     header('Location: login.php');
     exit;
@@ -13,23 +14,54 @@ if (($_SESSION['role'] ?? '') !== 'admin') {
     exit;
 }
 
+// ============================================================
+// GET THE FACILITY ID FROM URL
+// ============================================================
+$facility_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 
-$id = isset($_GET['id']) ? intval($_GET['id']) : 0;
-if ($id <= 0) {
+if ($facility_id <= 0) {
     header('Location: index.php');
     exit;
 }
 
-$stmt = $conn->prepare('SELECT client, branch_name, file_no FROM office_files WHERE id = ?');
-$stmt->bind_param('i', $id);
+// ============================================================
+// FIRST, GET THE FACILITY DETAILS TO FIND THE FILE_RECORD_ID
+// ============================================================
+$facility_stmt = $conn->prepare("SELECT file_record_id, facility_type, amount, sanction_date, sanction_letter_ref_no, 
+                                  comm_meet_no, comm_meet_date, board_meet_no, board_meet_date, 
+                                  facility_as, power_delegation FROM file_facilities WHERE id = ?");
+$facility_stmt->bind_param('i', $facility_id);
+$facility_stmt->execute();
+$facility_result = $facility_stmt->get_result();
+$facility_data = $facility_result->fetch_assoc();
+$facility_stmt->close();
+
+if (!$facility_data) {
+    $_SESSION['error'] = "Facility not found with ID: " . $facility_id;
+    header('Location: index.php');
+    exit;
+}
+
+// Use the file_record_id for the rest of the operations
+$file_record_id = $facility_data['file_record_id'];
+
+// ============================================================
+// FETCH MAIN FILE DATA USING THE FILE_RECORD_ID
+// ============================================================
+$stmt = $conn->prepare('SELECT id, client, branch_name, file_no, client_id FROM office_files WHERE id = ? AND is_deleted = 0');
+$stmt->bind_param('i', $file_record_id);
 $stmt->execute();
 $main_data = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
 if (!$main_data) {
+    $_SESSION['error'] = "File record not found";
     header('Location: index.php');
     exit;
 }
+
+// Get client_id for redirect
+$client_id = $main_data['client_id'] ?? 0;
 
 $facility_options = [];
 $lookup_res = $conn->query('SELECT facility_name AS facility_type, facility_group FROM facilities_type WHERE is_active = 1 ORDER BY facility_group ASC, facility_name ASC');
@@ -57,7 +89,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'delete_attachment' && isset($
     $delete_id = intval($_GET['attach_id']);
     $find_sql = 'SELECT file_path FROM attachments WHERE id = ? AND file_record_id = ?';
     $stmt_find = $conn->prepare($find_sql);
-    $stmt_find->bind_param('ii', $delete_id, $id);
+    $stmt_find->bind_param('ii', $delete_id, $file_record_id);
     $stmt_find->execute();
     $file_to_del = $stmt_find->get_result()->fetch_assoc();
     $stmt_find->close();
@@ -72,11 +104,12 @@ if (isset($_GET['action']) && $_GET['action'] === 'delete_attachment' && isset($
         $stmt_del->execute();
         $stmt_del->close();
 
-        header('Location: edit_facility.php?id=' . $id . '&status=deleted');
+        header('Location: edit_facility.php?id=' . $facility_id . '&status=deleted');
         exit;
     }
 }
 
+// Handle POST - Update facilities
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $current_modifier_id = $_SESSION['id'] ?? $_SESSION['user_id'] ?? null;
     $submitted_facility_ids = [];
@@ -142,7 +175,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 } else {
                     $null_updated_by = null;
-                    $insert_stmt->bind_param('iiissssdssss', $id, $current_modifier_id, $null_updated_by, $full_ref_no, $row_date, $fac_type, $facility_as, $amount, $comm_no, $comm_date, $board_no, $board_date);
+                    $insert_stmt->bind_param('iiissssdssss', $file_record_id, $current_modifier_id, $null_updated_by, $full_ref_no, $row_date, $fac_type, $facility_as, $amount, $comm_no, $comm_date, $board_no, $board_date);
                     $insert_stmt->execute();
                     $submitted_facility_ids[] = $insert_stmt->insert_id;
                 }
@@ -156,20 +189,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $placeholders = implode(',', array_fill(0, count($submitted_facility_ids), '?'));
             $delete_sql = "DELETE FROM file_facilities WHERE file_record_id = ? AND id NOT IN ($placeholders)";
             $delete_stmt = $conn->prepare($delete_sql);
-            $bind_params = array_merge([$id], $submitted_facility_ids);
+            $bind_params = array_merge([$file_record_id], $submitted_facility_ids);
             $types = 'i' . str_repeat('i', count($submitted_facility_ids));
             $delete_stmt->bind_param($types, ...$bind_params);
             $delete_stmt->execute();
             $delete_stmt->close();
         } else {
             $delete_stmt = $conn->prepare('DELETE FROM file_facilities WHERE file_record_id = ?');
-            $delete_stmt->bind_param('i', $id);
+            $delete_stmt->bind_param('i', $file_record_id);
             $delete_stmt->execute();
             $delete_stmt->close();
         }
 
         $conn->commit();
-        header('Location: edit_facility.php?id=' . $id . '&status=updated');
+        header('Location: edit_facility.php?id=' . $facility_id . '&status=updated');
         exit;
     } catch (Exception $e) {
         $conn->rollback();
@@ -177,8 +210,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+// Fetch all facilities for this file_record_id
 $fac_stmt = $conn->prepare('SELECT * FROM file_facilities WHERE file_record_id = ? ORDER BY sanction_date DESC, sanction_letter_ref_no DESC, id ASC');
-$fac_stmt->bind_param('i', $id);
+$fac_stmt->bind_param('i', $file_record_id);
 $fac_stmt->execute();
 $facilities_res = $fac_stmt->get_result();
 $fac_stmt->close();
@@ -207,6 +241,7 @@ function renderFacilityOptions(array $facility_options, string $selectedValue): 
     }
     return $html;
 }
+
 ob_end_flush();
 ?>
 <!DOCTYPE html>
@@ -232,13 +267,15 @@ ob_end_flush();
 <div class="container-fluid" style="max-width: 1500px;">
     <?php echo $status_message; ?>
 
-    <form method="post" action="edit_facility.php?id=<?php echo $id; ?>">
+    <form method="post" action="edit_facility.php?id=<?php echo $facility_id; ?>">
         <div class="d-flex justify-content-between align-items-center mb-4 bg-white p-3 rounded shadow-sm">
             <div>
                 <h4 class="mb-0 text-primary"><i class="fas fa-edit"></i> Edit Facilities</h4>
                 <small class="text-muted">Client: <strong><?php echo htmlspecialchars($main_data['client']); ?></strong></small>
+                <br><small class="text-muted">File: <strong><?php echo htmlspecialchars($main_data['file_no'] ?? 'N/A'); ?></strong></small>
             </div>
             <div class="d-flex gap-2">
+                <a href="client_profile.php?id=<?php echo $client_id; ?>" class="btn btn-sm btn-outline-primary"><i class="fas fa-user me-1"></i> Client Profile</a>
                 <a href="index.php" class="btn btn-sm btn-outline-secondary"><i class="fas fa-home me-1"></i> Home</a>
             </div>
         </div>
@@ -255,7 +292,7 @@ ob_end_flush();
                 $uploaded_docs = [];
                 if (!empty($group_date)) {
                     $att_stmt = $conn->prepare('SELECT id, description, file_path FROM attachments WHERE file_record_id = ? AND sanction_date = ? ORDER BY id ASC');
-                    $att_stmt->bind_param('is', $id, $group_date);
+                    $att_stmt->bind_param('is', $file_record_id, $group_date);
                     $att_stmt->execute();
                     $att_res = $att_stmt->get_result();
                     while ($doc = $att_res->fetch_assoc()) {
@@ -429,7 +466,7 @@ ob_end_flush();
                                                         <input type="file" name="<?php echo htmlspecialchars($input_field); ?>_<?php echo $groupIndex; ?>" class="form-control form-control-sm" style="font-size:11px;">
                                                         <?php if ($doc): ?>
                                                             <a href="<?php echo htmlspecialchars($doc['file_path']); ?>" target="_blank" class="btn btn-xs btn-outline-secondary px-2"><i class="fas fa-eye"></i></a>
-                                                            <a href="edit_facility.php?id=<?php echo $id; ?>&action=delete_attachment&attach_id=<?php echo intval($doc['id']); ?>" class="btn btn-xs btn-outline-danger px-2" onclick="return confirm('Delete this attachment permanently?');"><i class="fas fa-trash"></i></a>
+                                                            <a href="edit_facility.php?id=<?php echo $facility_id; ?>&action=delete_attachment&attach_id=<?php echo intval($doc['id']); ?>" class="btn btn-xs btn-outline-danger px-2" onclick="return confirm('Delete this attachment permanently?');"><i class="fas fa-trash"></i></a>
                                                         <?php endif; ?>
                                                     </div>
                                                 </td>
@@ -448,7 +485,7 @@ ob_end_flush();
         <?php endif; ?>
 
         <div class="mt-4 pt-3 border-top d-flex gap-2 justify-content-end">
-            <a href="index.php" class="btn btn-secondary shadow-sm" onclick="return confirm('Cancel adjustments and exit?');">Cancel</a>
+            <a href="client_profile.php?id=<?php echo $client_id; ?>" class="btn btn-secondary shadow-sm">Back to Client Profile</a>
             <button type="submit" class="btn btn-primary px-5 shadow-sm">Save All Changes</button>
         </div>
     </form>

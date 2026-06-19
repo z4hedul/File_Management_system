@@ -603,13 +603,13 @@ $page_title = "Client Profile - " . htmlspecialchars($client['client_name']);
                 </div>
             </div>
         </div>
+<div class="col-lg-8">
 
-        <div class="col-lg-8">
-            <!-- Facilities Section -->
-           <div class="card card-custom mb-4">
+<!-- Facilities Section -->
+<div class="card card-custom mb-4">
     <div class="card-header d-flex justify-content-between align-items-center">
         <span><i class="fas fa-handshake"></i> Facilities</span>
-        <button class="btn btn-sm btn-primary" onclick="addFacility(<?php echo $client['id']; ?>)">
+        <button class="btn btn-sm btn-primary" onclick="openAddFacilityModal(<?php echo $client['id']; ?>)">
             <i class="fas fa-plus"></i> Add Facility
         </button>
     </div>
@@ -650,8 +650,12 @@ $page_title = "Client Profile - " . htmlspecialchars($client['client_name']);
                                         <?php endif; ?>
                                     </div>
                                     <div>
-                                        <a href="more_details.php?id=<?php echo $facility['id']; ?>" class="btn btn-sm btn-outline-primary btn-sm-action"><i class="fas fa-eye"></i></a>
-                                        <a href="edit_facility.php?id=<?php echo $facility['id']; ?>" class="btn btn-sm btn-outline-success btn-sm-action"><i class="fas fa-edit"></i></a>
+                                        <a href="more_details.php?id=<?php echo $facility['id']; ?>" class="btn btn-sm btn-outline-primary btn-sm-action">
+    <i class="fas fa-eye"></i>
+</a>
+<a href="edit_facility.php?id=<?php echo $facility['id']; ?>&client_id=<?php echo $client['id']; ?>" class="btn btn-sm btn-outline-success btn-sm-action">
+    <i class="fas fa-edit"></i>
+</a>
                                     </div>
                                 </div>
                             </div>
@@ -1008,6 +1012,231 @@ $unassigned_query = "SELECT
     </div>
 </div>
 
+<!-- Add Facility Modal -->
+<div class="modal fade" id="addFacilityModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-handshake text-primary"></i> Add Facility for <span id="facility_client_name"><?php echo htmlspecialchars($client['client_name']); ?></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="facilityMessage"></div>
+                
+                <form id="addFacilityForm" enctype="multipart/form-data">
+                    <input type="hidden" id="facility_client_id" value="<?php echo $client['id']; ?>">
+                    
+                    <!-- Facility Type Dropdown -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Facility Type <span class="text-danger">*</span></label>
+                        <select name="facility_type" id="facility_type_select" class="form-control" required onchange="getFacilityGroup(this)">
+                            <option value="">-- Select Facility Type --</option>
+                            <?php
+                            $facility_types = $conn->query("SELECT facility_name, facility_group FROM facilities_type WHERE is_active = 1 ORDER BY facility_group ASC, facility_name ASC");
+                            if ($facility_types && $facility_types->num_rows > 0):
+                                while ($ft = $facility_types->fetch_assoc()):
+                            ?>
+                                <option value="<?php echo htmlspecialchars($ft['facility_name']); ?>" data-group="<?php echo htmlspecialchars($ft['facility_group']); ?>">
+                                    <?php echo htmlspecialchars($ft['facility_name']); ?> (<?php echo htmlspecialchars($ft['facility_group']); ?>)
+                                </option>
+                            <?php endwhile; endif; ?>
+                        </select>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Facility Group</label>
+                                <input type="text" id="facility_group" class="form-control" readonly style="background: #f8f9fa; font-weight: 600;">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Amount (BDT) <span class="text-danger">*</span></label>
+                                <input type="number" step="0.01" name="amount" id="facility_amount" class="form-control" placeholder="0.00" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Security Section -->
+                    <div class="card border-info mb-3">
+                        <div class="card-header bg-info text-white">
+                            <h6 class="mb-0"><i class="fas fa-shield-alt"></i> Security Details</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">Security Type</label>
+                                        <select name="security_type" id="security_type" class="form-control">
+                                            <option value="">-- Select Security Type --</option>
+                                            <option value="Cash">Cash</option>
+                                            <option value="Bank Guarantee">Bank Guarantee</option>
+                                            <option value="FDR">FDR</option>
+                                            <option value="Hypothecation">Hypothecation</option>
+                                            <option value="Pledge">Pledge</option>
+                                            <option value="Mortgage">Mortgage</option>
+                                            <option value="Personal Guarantee">Personal Guarantee</option>
+                                            <option value="Corporate Guarantee">Corporate Guarantee</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">Security Value (BDT)</label>
+                                        <input type="number" step="0.01" name="security_value" id="security_value" class="form-control" placeholder="0.00">
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">Security Description</label>
+                                        <input type="text" name="security_description" id="security_description" class="form-control" placeholder="Brief description">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="alert alert-warning small">
+                                <i class="fas fa-info-circle"></i> 
+                                <strong>Note:</strong> If this is a renewal, the security value will <strong>update</strong> (not add) to the new value.
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Sanction Details -->
+                    <div class="card border-primary mb-3">
+                        <div class="card-header bg-primary text-white">
+                            <h6 class="mb-0"><i class="fas fa-calendar-check"></i> Sanction Details</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">Sanction Date</label>
+                                        <input type="date" name="sanction_date" id="sanction_date" class="form-control">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">Sanction Letter Ref No</label>
+                                        <input type="text" name="sanction_letter_ref_no" id="sanction_letter_ref_no" class="form-control" placeholder="e.g., FSIB/HO/INVT/2026/001">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">Committee Meet No</label>
+                                        <input type="text" name="comm_meet_no" id="comm_meet_no" class="form-control" placeholder="e.g., COMM-001">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">Committee Meet Date</label>
+                                        <input type="date" name="comm_meet_date" id="comm_meet_date" class="form-control">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">Board Meet No</label>
+                                        <input type="text" name="board_meet_no" id="board_meet_no" class="form-control" placeholder="e.g., BOARD-001">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">Board Meet Date</label>
+                                        <input type="date" name="board_meet_date" id="board_meet_date" class="form-control">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">Facility As</label>
+                                        <select name="facility_as" id="facility_as" class="form-control">
+                                            <option value="">-- Select --</option>
+                                            <option value="Fresh">Fresh</option>
+                                            <option value="Renewal">Renewal</option>
+                                            <option value="Time Extension">Time Extension</option>
+                                            <option value="Renewal with Enhancement">Renewal with Enhancement</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">Power Delegation</label>
+                                        <select name="power_delegation" id="power_delegation" class="form-control">
+                                            <option value="">-- Select --</option>
+                                            <option value="MD">MD</option>
+                                            <option value="Board">Board</option>
+                                            <option value="EC">EC</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- File Attachments Section -->
+                    <div class="card border-success mb-3">
+                        <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0"><i class="fas fa-paperclip"></i> Document Attachments</h6>
+                            <button type="button" class="btn btn-light btn-sm" onclick="addAttachmentRow()">
+                                <i class="fas fa-plus-circle text-success"></i> Add Document
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <div id="attachments-container">
+                                <!-- Static Documents -->
+                                <div class="row g-2 mb-2 attachment-row">
+                                    <div class="col-md-4">
+                                        <label class="form-label small fw-bold text-secondary">Document Type</label>
+                                        <select name="doc_type[]" class="form-control form-control-sm doc-type-select" onchange="toggleOtherDoc(this)">
+                                            <option value="Branch Proposal">Branch Proposal</option>
+                                            <option value="Committee Memo">Committee Memo</option>
+                                            <option value="Committee Minutes">Committee Minutes</option>
+                                            <option value="Office Note">Office Note</option>
+                                            <option value="Board Memo">Board Memo</option>
+                                            <option value="Board Minutes">Board Minutes</option>
+                                            <option value="Sanction Letter">Sanction Letter</option>
+                                            <option value="Other">Other</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label small fw-bold text-secondary">Description</label>
+                                        <input type="text" name="doc_description[]" class="form-control form-control-sm" placeholder="Document description">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label small fw-bold text-secondary">Upload File</label>
+                                        <input type="file" name="doc_file[]" class="form-control form-control-sm" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png">
+                                    </div>
+                                    <div class="col-md-1 d-flex align-items-end">
+                                        <button type="button" class="btn btn-danger btn-sm remove-attachment" onclick="removeAttachmentRow(this)" style="display:none;">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="dynamic-attachments-container"></div>
+                            <div class="mt-2">
+                                <button type="button" class="btn btn-success btn-sm" onclick="addAttachmentRow()">
+                                    <i class="fas fa-plus-circle"></i> Add Another Document
+                                </button>
+                                <small class="text-muted ms-2">Supported formats: PDF, DOC, DOCX, XLS, XLSX, JPG, PNG</small>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="saveFacility()">
+                    <i class="fas fa-save"></i> Save Facility
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 <script src="assets/js/jquery-3.6.0.min.js"></script>
 <script src="assets/js/bootstrap.bundle.min.js"></script>
 
@@ -1122,7 +1351,7 @@ function addFacility(clientId) {
     window.location.href = 'add_facility.php?client_id=' + clientId;
 }
 
-// Delete file from client profile - Unlink from client
+
 // Delete/Unlink file from client profile
 function deleteFile(fileId, clientId) {
     if (!confirm('Are you sure you want to remove this file from the client profile?\n\nThe file will still be available in the master file list and can be reassigned later.')) {
@@ -1321,6 +1550,246 @@ function assignFile() {
                 errorMsg = 'Server error: ' + xhr.status + ' ' + xhr.statusText;
             }
             showToast('Error: ' + errorMsg, 'error');
+        }
+    });
+}
+
+// ============================================================
+// OPEN ADD FACILITY MODAL
+// ============================================================
+function openAddFacilityModal(clientId) {
+    // Reset form
+    document.getElementById('facility_type_select').value = '';
+    document.getElementById('facility_group').value = '';
+    document.getElementById('facility_amount').value = '';
+    document.getElementById('security_type').value = '';
+    document.getElementById('security_value').value = '';
+    document.getElementById('security_description').value = '';
+    document.getElementById('sanction_date').value = '';
+    document.getElementById('sanction_letter_ref_no').value = '';
+    document.getElementById('comm_meet_no').value = '';
+    document.getElementById('comm_meet_date').value = '';
+    document.getElementById('board_meet_no').value = '';
+    document.getElementById('board_meet_date').value = '';
+    document.getElementById('facility_as').value = '';
+    document.getElementById('power_delegation').value = '';
+    document.getElementById('facilityMessage').innerHTML = '';
+    
+    // Set client name
+    document.getElementById('facility_client_name').textContent = '<?php echo htmlspecialchars($client['client_name']); ?>';
+    document.getElementById('facility_client_id').value = clientId;
+    
+    // Set default date
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('sanction_date').value = today;
+    
+    // Show modal
+    $('#addFacilityModal').modal('show');
+}
+// ============================================================
+// GET FACILITY GROUP WHEN TYPE IS SELECTED
+// ============================================================
+function getFacilityGroup(selectElement) {
+    const selectedOption = selectElement.options[selectElement.selectedIndex];
+    const groupInput = document.getElementById('facility_group');
+    
+    if (selectedOption && selectedOption.value !== "") {
+        const group = selectedOption.getAttribute('data-group') || '';
+        groupInput.value = group;
+        console.log('Facility Type:', selectedOption.value, 'Group:', group);
+    } else {
+        groupInput.value = '';
+    }
+}
+// ============================================================
+// ATTACHMENT FUNCTIONS
+// ============================================================
+
+// Add attachment row
+function addAttachmentRow() {
+    const container = document.getElementById('dynamic-attachments-container');
+    const row = document.createElement('div');
+    row.className = 'row g-2 mb-2 attachment-row';
+    row.innerHTML = `
+        <div class="col-md-4">
+            <select name="doc_type[]" class="form-control form-control-sm doc-type-select" onchange="toggleOtherDoc(this)">
+                <option value="Branch Proposal">Branch Proposal</option>
+                <option value="Committee Memo">Committee Memo</option>
+                <option value="Committee Minutes">Committee Minutes</option>
+                <option value="Office Note">Office Note</option>
+                <option value="Board Memo">Board Memo</option>
+                <option value="Board Minutes">Board Minutes</option>
+                <option value="Sanction Letter">Sanction Letter</option>
+                <option value="Other">Other</option>
+            </select>
+        </div>
+        <div class="col-md-4">
+            <input type="text" name="doc_description[]" class="form-control form-control-sm" placeholder="Document description">
+        </div>
+        <div class="col-md-3">
+            <input type="file" name="doc_file[]" class="form-control form-control-sm" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png">
+        </div>
+        <div class="col-md-1 d-flex align-items-end">
+            <button type="button" class="btn btn-danger btn-sm remove-attachment" onclick="removeAttachmentRow(this)">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    `;
+    container.appendChild(row);
+}
+
+// Remove attachment row
+function removeAttachmentRow(button) {
+    const row = button.closest('.attachment-row');
+    if (row) {
+        row.remove();
+    }
+}
+
+// Toggle Other document type
+function toggleOtherDoc(selectElement) {
+    const row = selectElement.closest('.attachment-row');
+    const descInput = row.querySelector('input[name="doc_description[]"]');
+    if (selectElement.value === 'Other') {
+        descInput.placeholder = 'Enter custom document name';
+        descInput.focus();
+    } else {
+        descInput.placeholder = 'Document description';
+    }
+}
+// ============================================================
+// SAVE FACILITY WITH ATTACHMENTS
+// ============================================================
+function saveFacility() {
+    const clientId = document.getElementById('facility_client_id').value;
+    const facilityType = document.getElementById('facility_type_select').value;
+    const facilityGroup = document.getElementById('facility_group').value;
+    const amount = document.getElementById('facility_amount').value;
+    const securityType = document.getElementById('security_type').value;
+    const securityValue = document.getElementById('security_value').value;
+    const securityDescription = document.getElementById('security_description').value;
+    const sanctionDate = document.getElementById('sanction_date').value;
+    const sanctionLetterRefNo = document.getElementById('sanction_letter_ref_no').value;
+    const commMeetNo = document.getElementById('comm_meet_no').value;
+    const commMeetDate = document.getElementById('comm_meet_date').value;
+    const boardMeetNo = document.getElementById('board_meet_no').value;
+    const boardMeetDate = document.getElementById('board_meet_date').value;
+    const facilityAs = document.getElementById('facility_as').value;
+    const powerDelegation = document.getElementById('power_delegation').value;
+    
+    // Validation
+    if (!facilityType) {
+        document.getElementById('facilityMessage').innerHTML = 
+            '<div class="alert alert-danger">Please select a facility type.</div>';
+        return;
+    }
+    
+    if (!amount || parseFloat(amount) <= 0) {
+        document.getElementById('facilityMessage').innerHTML = 
+            '<div class="alert alert-danger">Please enter a valid amount.</div>';
+        return;
+    }
+    
+    // Show loading
+    const btn = document.querySelector('#addFacilityModal .btn-primary');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+    btn.disabled = true;
+    
+    // Clear previous message
+    document.getElementById('facilityMessage').innerHTML = '';
+    
+    // Create FormData for file uploads
+    const formData = new FormData();
+    formData.append('client_id', clientId);
+    formData.append('facility_type', facilityType);
+    formData.append('facility_group', facilityGroup || 'General');
+    formData.append('amount', amount);
+    formData.append('security_type', securityType || '');
+    formData.append('security_value', securityValue || '');
+    formData.append('security_description', securityDescription || '');
+    formData.append('sanction_date', sanctionDate || '');
+    formData.append('sanction_letter_ref_no', sanctionLetterRefNo || '');
+    formData.append('comm_meet_no', commMeetNo || '');
+    formData.append('comm_meet_date', commMeetDate || '');
+    formData.append('board_meet_no', boardMeetNo || '');
+    formData.append('board_meet_date', boardMeetDate || '');
+    formData.append('facility_as', facilityAs || '');
+    formData.append('power_delegation', powerDelegation || '');
+    
+    // Collect attachments
+    const docTypes = document.querySelectorAll('select[name="doc_type[]"]');
+    const docDescriptions = document.querySelectorAll('input[name="doc_description[]"]');
+    const docFiles = document.querySelectorAll('input[name="doc_file[]"]');
+    
+    let attachmentCount = 0;
+    for (let i = 0; i < docFiles.length; i++) {
+        if (docFiles[i].files.length > 0) {
+            const file = docFiles[i].files[0];
+            const docType = docTypes[i] ? docTypes[i].value : 'Other';
+            const docDesc = docDescriptions[i] ? docDescriptions[i].value : docType;
+            
+            formData.append('doc_type[]', docType);
+            formData.append('doc_description[]', docDesc);
+            formData.append('doc_file[]', file);
+            attachmentCount++;
+        }
+    }
+    
+    console.log('Sending facility with ' + attachmentCount + ' attachments');
+    
+    $.ajax({
+        url: 'api/add_facility.php',
+        method: 'POST',
+        data: formData,
+        contentType: false,
+        processData: false,
+        dataType: 'json',
+        success: function(response) {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+            
+            console.log('Response:', response);
+            
+            if (response.success) {
+                document.getElementById('facilityMessage').innerHTML = 
+                    '<div class="alert alert-success">✅ ' + response.message + ' (' + attachmentCount + ' attachments uploaded)</div>';
+                
+                setTimeout(function() {
+                    $('#addFacilityModal').modal('hide');
+                    location.reload();
+                }, 1500);
+            } else {
+                document.getElementById('facilityMessage').innerHTML = 
+                    '<div class="alert alert-danger">❌ Error: ' + (response.error || 'Unknown error') + '</div>';
+            }
+        },
+        error: function(xhr, status, error) {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+            
+            console.error('AJAX Error:', xhr, status, error);
+            
+            let errorMsg = 'An error occurred';
+            try {
+                const response = JSON.parse(xhr.responseText);
+                if (response && response.error) {
+                    errorMsg = response.error;
+                }
+            } catch(e) {
+                if (xhr.status === 201 || xhr.status === 200) {
+                    document.getElementById('facilityMessage').innerHTML = 
+                        '<div class="alert alert-success">✅ Facility added successfully!</div>';
+                    setTimeout(function() {
+                        $('#addFacilityModal').modal('hide');
+                        location.reload();
+                    }, 1500);
+                    return;
+                }
+                errorMsg = xhr.status + ': ' + xhr.statusText;
+            }
+            document.getElementById('facilityMessage').innerHTML = 
+                '<div class="alert alert-danger">❌ Error: ' + errorMsg + '</div>';
         }
     });
 }

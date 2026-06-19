@@ -70,10 +70,21 @@ if ($lookup_res && $lookup_res->num_rows > 0) {
 }
 
 $facility_as_options = ['Fresh', 'Renewal', 'Time Extension', 'Renewal with Enhancement'];
+$power_delegation_options = ['Board', 'MD'];
 
 function renderFacilityAsOptions(array $options, string $selectedValue = ''): string
 {
     $html = '<option value="">-- Select Facility As --</option>';
+    foreach ($options as $option) {
+        $selected = ($selectedValue === $option) ? ' selected' : '';
+        $html .= '<option value="' . htmlspecialchars($option, ENT_QUOTES, 'UTF-8') . '"' . $selected . '>' . htmlspecialchars($option) . '</option>';
+    }
+    return $html;
+}
+
+function renderPowerDelegationOptions(array $options, string $selectedValue = ''): string
+{
+    $html = '<option value="">-- Select Approval By --</option>';
     foreach ($options as $option) {
         $selected = ($selectedValue === $option) ? ' selected' : '';
         $html .= '<option value="' . htmlspecialchars($option, ENT_QUOTES, 'UTF-8') . '"' . $selected . '>' . htmlspecialchars($option) . '</option>';
@@ -106,6 +117,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 if (!empty($type)) {
                     $amt = $_POST['sanction_amounts'][$key] ?? 0;
                     $facility_as = trim($_POST['facility_as'][$key] ?? '');
+                    $power_delegation = trim($_POST['power_delegation'][$key] ?? '');
                     $facility_group = 'General';
 
                     // Handle "Others" logic
@@ -134,16 +146,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         }
                     }
                     
-                    // PREPARE THE INSERT
+                    // PREPARE THE INSERT with power_delegation column
                     $ins_stmt = $conn->prepare("INSERT INTO file_facilities 
                         (file_record_id, user_id, facility_type, facility_as, facility_group, amount, 
                          sanction_date, sanction_letter_ref_no, comm_meet_no, comm_meet_date, 
-                         board_meet_no, board_meet_date) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                         board_meet_no, board_meet_date, power_delegation) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                     
-                    $ins_stmt->bind_param("iisssdssssss", $id, $session_user_id, $type, 
+                    $ins_stmt->bind_param("iisssdsssssss", $id, $session_user_id, $type, 
                                           $facility_as, $facility_group, $amt, $f_date, $s_ref, 
-                                          $c_no, $c_date, $b_no, $b_date);
+                                          $c_no, $c_date, $b_no, $b_date, $power_delegation);
                     $ins_stmt->execute();
                     $ins_stmt->close();
                 }
@@ -381,7 +393,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <h6 class="fw-bold mb-3"><i class="fas fa-list"></i> Approved Facilities</h6>
         <div id="facility-container">
             <div class="row g-2 mb-3 facility-row border-bottom pb-3">
-                <div class="col-md-5">
+                <div class="col-md-4">
                     <label class="form-label small fw-bold">Facility Type</label>
                     <select name="facility_types[]" class="form-control facility-type-select" required>
                         <option value="">-- Select Facility Type --</option>
@@ -398,10 +410,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         <input type="text" name="facility_groups_other[]" class="form-control facility-group-other" placeholder="Enter custom facility group (e.g. Funded, Non-Funded)">
                     </div>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <label class="form-label small fw-bold">Facility As</label>
                     <select name="facility_as[]" class="form-control" required>
                         <?php echo renderFacilityAsOptions($facility_as_options); ?>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small fw-bold">Approval By</label>
+                    <select name="power_delegation[]" class="form-control" required>
+                        <?php echo renderPowerDelegationOptions($power_delegation_options); ?>
                     </select>
                 </div>
                 <div class="col-md-3">
@@ -537,6 +555,7 @@ const facilityOptionsHtml = `<?php
 ?>`;
 
 const facilityAsOptionsHtml = `<?php echo addslashes(renderFacilityAsOptions($facility_as_options)); ?>`;
+const powerDelegationOptionsHtml = `<?php echo addslashes(renderPowerDelegationOptions($power_delegation_options)); ?>`;
 
 // Handles custom selection toggles
 document.addEventListener('change', function(e) {
@@ -606,7 +625,7 @@ document.getElementById('add-more').onclick = function() {
     newRow.className = 'row g-2 mb-3 facility-row border-bottom pb-3';
     
     newRow.innerHTML = `
-        <div class="col-md-5">
+        <div class="col-md-4">
             <select name="facility_types[]" class="form-control facility-type-select" required>
                 ${facilityOptionsHtml}
             </select>
@@ -615,9 +634,14 @@ document.getElementById('add-more').onclick = function() {
                 <input type="text" name="facility_groups_other[]" class="form-control facility-group-other" placeholder="Enter custom facility group">
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-md-2">
             <select name="facility_as[]" class="form-control" required>
                 ${facilityAsOptionsHtml}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <select name="power_delegation[]" class="form-control" required>
+                ${powerDelegationOptionsHtml}
             </select>
         </div>
         <div class="col-md-3">

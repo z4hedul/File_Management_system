@@ -539,10 +539,6 @@ if ($unified_workforce_res && $unified_workforce_res->num_rows > 0) {
 </div>
 <?php endif; ?>
 
-
-
-
-
    <div class="row g-3 mb-4">
     <div class="col-md-3">
         <div class="card metric-card metric-primary shadow-sm p-3 h-100">
