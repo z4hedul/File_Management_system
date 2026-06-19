@@ -14,24 +14,24 @@ $isAdmin = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin');
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>File Management System</title>
     
-    <link rel="stylesheet" href="styles/bootstrap.min.css">
-    <link rel="stylesheet" href="style/all.min.css">
-    <link rel="stylesheet" href="style/dataTables.bootstrap5.min.css">
-    <link rel="stylesheet" href="style/style.css">
+  <link rel="stylesheet" href="assets/css/bootstrap.min.css">
+<link rel="stylesheet" href="assets/css/all.min.css">
+<link rel="stylesheet" href="assets/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="assets/css/style.css">
     
     <style>
         /* UNIFIED GLOBAL BODY SETTINGS */
         body {
-            padding-top: 85px !important;    /* Prevents main content from slipping under top navbar */
-            padding-bottom: 160px !important; /* Prevents main content from hiding behind bottom footer */
-            background-color: #f4f7f6 !important; /* Soft tint matching corporate background styling */
+            padding-top: 85px !important;
+            padding-bottom: 160px !important;
+            background-color: #f4f7f6 !important;
         }
         
         /* FSIBL BRAND NAVIGATION INTERFACE */
         .fsibl-navbar {
-            background: linear-gradient(135deg, #006a4e 0%, #00523c 100%) !important; /* FSIBL Signature Deep Green Gradient */
+            background: linear-gradient(135deg, #006a4e 0%, #00523c 100%) !important;
             box-shadow: 0 4px 12px rgba(0, 106, 78, 0.15) !important;
-            border-bottom: 3px solid #ffc72c !important; /* FSIBL Accent Gold Horizon Line */
+            border-bottom: 3px solid #ffc72c !important;
             padding: 0.6rem 1.5rem !important;
         }
 
@@ -46,14 +46,13 @@ $isAdmin = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin');
         .fsibl-brand-subtitle {
             font-size: 0.65rem;
             font-weight: 600;
-            color: #ffc72c !important; /* Accent Gold text descriptor */
+            color: #ffc72c !important;
             letter-spacing: 1px;
             display: block;
             text-transform: uppercase;
             margin-top: -2px;
         }
 
-        /* Nav Link Elements */
         .fsibl-navbar .nav-link {
             color: rgba(255, 255, 255, 0.85) !important;
             font-weight: 600;
@@ -70,7 +69,6 @@ $isAdmin = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin');
             background-color: rgba(255, 255, 255, 0.1) !important;
         }
 
-        /* Welcome User Badge */
         .fsibl-user-badge {
             background-color: rgba(0, 0, 0, 0.15);
             border: 1px solid rgba(255, 255, 255, 0.15);
@@ -80,15 +78,14 @@ $isAdmin = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin');
         }
 
         .fsibl-user-badge .role-tag {
-            color: #ffc72c !important; /* Gold label for system role */
+            color: #ffc72c !important;
             font-weight: 700;
             letter-spacing: 0.5px;
         }
 
-        /* Logout button style */
         .fsibl-btn-logout {
-            background-color: #e0ae22 !important; /* Gold Base Button */
-            color: #ffffff !important; /* Contrast Green Font text */
+            background-color: #e0ae22 !important;
+            color: #ffffff !important;
             font-weight: 700 !important;
             font-size: 0.75rem !important;
             border: none !important;
@@ -103,7 +100,6 @@ $isAdmin = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin');
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
         }
 
-        /* Utility Page Layout Wrapper Constraint */
         .app-page-wrapper {
             margin-top: 20px !important;
             display: block;
@@ -121,7 +117,6 @@ $isAdmin = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin');
 <nav class="navbar navbar-expand-lg navbar-dark fixed-top fsibl-navbar">
     <div class="container-fluid">
         <a class="navbar-brand d-flex align-items-center me-4" href="index.php">
-            <!-- Enlarged Logo Image -->
             <div class="me-3 text-center bg-white rounded-circle d-flex align-items-center justify-content-center overflow-hidden" style="width: 55px; height: 55px; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
                 <img src="images/fsib_logo.png" alt="FSIBL Logo" style="width: 70%; height: 80%; object-fit: cover;" onerror="this.onerror=null; this.parentElement.innerHTML='<i class=\'fas fa-file-invoice text-success\' style=\'font-size: 1.8rem; color: #006a4e !important;\'></i>'">
             </div>

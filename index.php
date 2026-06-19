@@ -1,4 +1,16 @@
 <?php
+// ============================================================
+// DEFINE THE buildStageUrl FUNCTION FIRST (BEFORE ANYTHING ELSE)
+// ============================================================
+function buildStageUrl($stage_name, $from, $to) {
+    $url = "index.php?status_view=" . urlencode($stage_name) . "&show_queue=1";
+    if (!empty($from) && !empty($to)) {
+        $url .= "&from_date=" . urlencode($from) . "&to_date=" . urlencode($to);
+    }
+    return $url;
+}
+// ============================================================
+
 session_start();
 include 'db.php';
 include 'header.php';
@@ -99,9 +111,10 @@ foreach ($stages as $key => $status_value) {
 
 $total_processing = $counts['proposal_received'] + $counts['in_prep'] + $counts['office_note'] + $counts['committee_memo'] + $counts['committee_minutes'] + $counts['board_memo'] + $counts['board_minutes'];
 
-// FIX #1: Only fetch matching proposals when show_queue is true
+// FIX #1: Only fetch matching proposals when show_queue is true - FIXED GROUPING
 $matching_proposals = [];
 if ($show_queue && !empty($active_filter)) {
+    // Fetch all assignments first without grouping
     $list_sql = "SELECT 
                     pa.id,
                     pa.proposal_ref,
@@ -133,13 +146,46 @@ if ($show_queue && !empty($active_filter)) {
         $list_sql .= " AND ff.sanction_date BETWEEN '{$safe_from} 00:00:00' AND '{$safe_to} 23:59:59'";
     }
     
-    $list_sql .= " ORDER BY pa.assigned_date DESC";
+    $list_sql .= " ORDER BY pa.proposal_ref, pa.assigned_date DESC";
     
     $list_stmt = $conn->prepare($list_sql);
     $list_stmt->bind_param('s', $active_filter);
     $list_stmt->execute();
-    $matching_proposals = $list_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $all_results = $list_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     $list_stmt->close();
+    
+    // Group by proposal_ref in PHP
+    $grouped_temp = [];
+    foreach ($all_results as $row) {
+        $ref = $row['proposal_ref'];
+        if (!isset($grouped_temp[$ref])) {
+            $grouped_temp[$ref] = [
+                'proposal_ref' => $row['proposal_ref'],
+                'proposal_status' => $row['proposal_status'],
+                'assigned_time' => $row['assigned_time'],
+                'client_name' => $row['client_name'],
+                'file_no' => $row['file_no'],
+                'branch_name' => $row['branch_name'],
+                'division' => $row['division'],
+                'file_rec_id' => $row['file_rec_id'],
+                'officer_name' => $row['officer_name'],
+                'sanction_letter_ref_no' => $row['sanction_letter_ref_no'],
+                'sanction_date' => $row['sanction_date'],
+                'board_meet_no' => $row['board_meet_no'],
+                'comm_meet_no' => $row['comm_meet_no'],
+                'remarks' => $row['remarks'],
+                'facilities' => []
+            ];
+        }
+        // Add facility to the proposal
+        $grouped_temp[$ref]['facilities'][] = [
+            'type' => $row['proposal_type'],
+            'amount' => floatval($row['proposal_amount'])
+        ];
+    }
+    
+    // Convert to indexed array
+    $matching_proposals = array_values($grouped_temp);
 }
 
 // FIX #2: Improved workforce query to correctly show active tasks and client names
@@ -210,18 +256,6 @@ if ($unified_workforce_res && $unified_workforce_res->num_rows > 0) {
         $workforce_hierarchy[$g_name]['roster'][] = $row;
     }
 }
-
-// ============================================================
-// DEFINE THE buildStageUrl FUNCTION HERE (BEFORE HTML OUTPUT)
-// ============================================================
-function buildStageUrl($stage_name, $from, $to) {
-    $url = "index.php?status_view=" . urlencode($stage_name) . "&show_queue=1";
-    if (!empty($from) && !empty($to)) {
-        $url .= "&from_date=" . urlencode($from) . "&to_date=" . urlencode($to);
-    }
-    return $url;
-}
-// ============================================================
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -362,7 +396,7 @@ function buildStageUrl($stage_name, $from, $to) {
         box-shadow: var(--box-shadow);
     }
     
-    /* Professional Stage Cards - NEW DESIGN */
+    /* Professional Stage Cards */
     .stages-grid {
         display: grid;
         grid-template-columns: repeat(10, 1fr);
@@ -431,18 +465,6 @@ function buildStageUrl($stage_name, $from, $to) {
     .stage-dark .stage-icon { background: rgba(52, 58, 64, 0.1); color: #343a40; }
     .stage-danger .stage-icon { background: rgba(231, 76, 60, 0.1); color: #e74c3c; }
     
-    .stage-primary:hover .stage-icon,
-    .stage-info:hover .stage-icon,
-    .stage-warning:hover .stage-icon,
-    .stage-purple:hover .stage-icon,
-    .stage-orange:hover .stage-icon,
-    .stage-teal:hover .stage-icon,
-    .stage-success:hover .stage-icon,
-    .stage-dark:hover .stage-icon,
-    .stage-danger:hover .stage-icon {
-        transform: scale(1.05);
-    }
-    
     @media (max-width: 1200px) {
         .stages-grid { grid-template-columns: repeat(5, 1fr); }
     }
@@ -451,23 +473,6 @@ function buildStageUrl($stage_name, $from, $to) {
         .stages-grid { grid-template-columns: repeat(3, 1fr); }
         .stage-count { font-size: 1.3rem; }
         .stage-icon { width: 40px; height: 40px; font-size: 1.1rem; }
-    }
-    
-    /* Other existing styles */
-    .table-custom {
-        border-radius: var(--border-radius);
-        overflow: hidden;
-    }
-    
-    .table-custom thead th {
-        background: var(--dark-bg);
-        color: #fff;
-        font-size: 0.7rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        padding: 12px 16px;
-        border: none;
     }
     
     .group-card {
@@ -513,14 +518,30 @@ function buildStageUrl($stage_name, $from, $to) {
                 <i class="fas fa-building"></i>
                 <span>Facility Types</span>
             </a>
+            <a href="user_performance_report.php" class="admin-toolbar-btn admin-btn-info">
+                <i class="fas fa-chart-line"></i>
+                <span>Performance Report</span>
+            </a>
             <a href="run_backup.php" class="admin-toolbar-btn admin-btn-warning">
                 <i class="fas fa-database"></i>
                 <span>Backup Database</span>
+            </a>
+            <a href="client_profile.php" class="admin-toolbar-btn admin-btn-warning">
+                <i class="fas fa-database"></i>
+                <span>Client Profile</span>
+            </a>
+            <a href="cabinet_files.php" class="admin-toolbar-btn admin-btn-warning">
+                <i class="fas fa-database"></i>
+                <span>cabinet_files</span>
             </a>
         </div>
     </div>
 </div>
 <?php endif; ?>
+
+
+
+
 
    <div class="row g-3 mb-4">
     <div class="col-md-3">
@@ -693,40 +714,14 @@ function buildStageUrl($stage_name, $from, $to) {
         $queue_close_url .= '?from_date=' . urlencode($from_date) . '&to_date=' . urlencode($to_date);
     }
     ?>
-    <?php
-    $grouped_proposals = [];
-    if (!empty($matching_proposals)) {
-        foreach ($matching_proposals as $row) {
-            $group_key = ($row['proposal_ref'] ?? '') . '|' . ($row['proposal_status'] ?? '') . '|' . ($row['file_rec_id'] ?? '');
-            if (!isset($grouped_proposals[$group_key])) {
-                $grouped_proposals[$group_key] = $row;
-                $grouped_proposals[$group_key]['facilities'] = [];
-                $grouped_proposals[$group_key]['group_total_amount'] = 0;
-            }
-            $fac_array = explode('||', $row['structural_facilities'] ?? '');
-            foreach ($fac_array as $fac_raw) {
-                if ($fac_raw === '') {
-                    continue;
-                }
-                $fac_parts = explode('::', $fac_raw);
-                $grouped_proposals[$group_key]['facilities'][] = [
-                    'type'   => $fac_parts[0] ?? 'N/A',
-                    'amount' => floatval($fac_parts[1] ?? 0)
-                ];
-                $grouped_proposals[$group_key]['group_total_amount'] += floatval($fac_parts[1] ?? 0);
-            }
-        }
-    }
-    ?>
 
- 
-<!-- Update Queue section to only show when a filter is selected -->
+    <!-- Update Queue section to only show when a filter is selected -->
 <?php if ($show_queue && !empty($active_filter)): ?>
 <div class="card shadow-sm border-0 mb-4">
     <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center border-bottom">
         <h5 class="mb-0 fw-bold text-dark">
             <i class="fas fa-list text-primary me-2"></i> File Queue: <span class="text-primary"><?php echo htmlspecialchars($active_filter); ?></span> 
-            <span class="badge bg-secondary ms-2 small" style="font-size:0.8rem;"><?php echo count($matching_proposals); ?> Clients Found</span>
+            <span class="badge bg-secondary ms-2 small" style="font-size:0.8rem;"><?php echo count($matching_proposals); ?> Proposals Found</span>
         </h5>
         <a href="index.php" class="btn btn-sm btn-light text-muted"><i class="fas fa-times me-1"></i> Close Queue</a>
     </div>
@@ -743,39 +738,44 @@ function buildStageUrl($stage_name, $from, $to) {
             </thead>
             <tbody class="small">
                 <?php if (!empty($matching_proposals)): ?>
-                    <?php foreach ($matching_proposals as $row): ?>
+                    <?php foreach ($matching_proposals as $proposal): 
+                        $total_proposal_amount = 0;
+                        foreach ($proposal['facilities'] as $fac) {
+                            $total_proposal_amount += $fac['amount'];
+                        }
+                    ?>
                         <tr>
                             <td class="ps-4 fw-semibold text-secondary" style="vertical-align: middle;">
                                 <i class="far fa-clock text-primary me-1"></i>
-                                <?php echo (!empty($row['assigned_time'])) ? date('d-M-Y h:i A', strtotime($row['assigned_time'])) : 'Timestamp Not Set'; ?>
+                                <?php echo (!empty($proposal['assigned_time'])) ? date('d-M-Y h:i A', strtotime($proposal['assigned_time'])) : 'Timestamp Not Set'; ?>
                             </td>
                             <td style="vertical-align: middle;">
                                 <div class="fw-bold client-header mb-1">
-                                    <a href="more_details.php?id=<?php echo intval($row['file_rec_id']); ?>" class="text-decoration-none text-dark hover-primary">
-                                        <i class="fas fa-folder-open text-warning me-2"></i><?php echo htmlspecialchars($row['client_name'] ?? 'N/A'); ?>
+                                    <a href="more_details.php?id=<?php echo intval($proposal['file_rec_id']); ?>" class="text-decoration-none text-dark hover-primary">
+                                        <i class="fas fa-folder-open text-warning me-2"></i><?php echo htmlspecialchars($proposal['client_name'] ?? 'N/A'); ?>
                                     </a>
                                 </div>
                                 <div class="text-muted small font-monospace d-flex flex-wrap gap-2">
-                                    <?php if ($active_filter === 'Approval/Sanction' && !empty($row['sanction_letter_ref_no'])): ?>
-                                        <span><i class="fas fa-file-signature text-success me-1"></i>Sanction Ref: <strong class="text-success"><?php echo htmlspecialchars($row['sanction_letter_ref_no']); ?></strong></span>
-                                        <?php if (!empty($row['sanction_date'])): ?>
+                                    <?php if ($active_filter === 'Approval/Sanction' && !empty($proposal['sanction_letter_ref_no'])): ?>
+                                        <span><i class="fas fa-file-signature text-success me-1"></i>Sanction Ref: <strong class="text-success"><?php echo htmlspecialchars($proposal['sanction_letter_ref_no']); ?></strong></span>
+                                        <?php if (!empty($proposal['sanction_date'])): ?>
                                             <span class="mx-1">|</span>
-                                            <span><i class="fas fa-calendar-check text-success me-1"></i>Date: <strong><?php echo date('d-M-Y', strtotime($row['sanction_date'])); ?></strong></span>
+                                            <span><i class="fas fa-calendar-check text-success me-1"></i>Date: <strong><?php echo date('d-M-Y', strtotime($proposal['sanction_date'])); ?></strong></span>
                                         <?php endif; ?>
                                     <?php else: ?>
-                                        <span><i class="fas fa-code-branch text-info me-1"></i>Branch: <strong><?php echo htmlspecialchars($row['branch_name'] ?? 'N/A'); ?></strong></span>
+                                        <span><i class="fas fa-code-branch text-info me-1"></i>Branch: <strong><?php echo htmlspecialchars($proposal['branch_name'] ?? 'N/A'); ?></strong></span>
                                         <span class="mx-1">|</span>
-                                        <span><i class="fas fa-layer-group text-purple me-1"></i>Div: <strong class="text-purple"><?php echo htmlspecialchars($row['division'] ?? 'N/A'); ?></strong></span>
+                                        <span><i class="fas fa-layer-group text-purple me-1"></i>Div: <strong class="text-purple"><?php echo htmlspecialchars($proposal['division'] ?? 'N/A'); ?></strong></span>
                                     <?php endif; ?>
                                 </div>
-                                <?php if ($active_filter === 'Approval/Sanction' && (!empty($row['board_meet_no']) || !empty($row['comm_meet_no']))): ?>
+                                <?php if ($active_filter === 'Approval/Sanction' && (!empty($proposal['board_meet_no']) || !empty($proposal['comm_meet_no']))): ?>
                                     <div class="text-muted small font-monospace mt-1">
-                                        <?php if (!empty($row['board_meet_no'])): ?>
-                                            <span><i class="fas fa-chalkboard-user me-1"></i>Board: <?php echo htmlspecialchars($row['board_meet_no'] ?? 'N/A'); ?></span>
+                                        <?php if (!empty($proposal['board_meet_no'])): ?>
+                                            <span><i class="fas fa-chalkboard-user me-1"></i>Board: <?php echo htmlspecialchars($proposal['board_meet_no'] ?? 'N/A'); ?></span>
                                         <?php endif; ?>
-                                        <?php if (!empty($row['comm_meet_no'])): ?>
-                                            <?php if (!empty($row['board_meet_no'])): ?> <span class="mx-1">|</span> <?php endif; ?>
-                                            <span><i class="fas fa-users me-1"></i>Committee: <?php echo htmlspecialchars($row['comm_meet_no'] ?? 'N/A'); ?></span>
+                                        <?php if (!empty($proposal['comm_meet_no'])): ?>
+                                            <?php if (!empty($proposal['board_meet_no'])): ?> <span class="mx-1">|</span> <?php endif; ?>
+                                            <span><i class="fas fa-users me-1"></i>Committee: <?php echo htmlspecialchars($proposal['comm_meet_no'] ?? 'N/A'); ?></span>
                                         <?php endif; ?>
                                     </div>
                                 <?php endif; ?>
@@ -785,34 +785,42 @@ function buildStageUrl($stage_name, $from, $to) {
                                     <div class="d-flex flex-column">
                                         <span class="fw-semibold text-success">
                                             <i class="fas fa-check-circle text-success me-1"></i>
-                                            Sanctioned Amount: BDT <?php echo number_format(floatval($row['proposal_amount'] ?? 0), 2); ?>
+                                            Sanctioned Amount: BDT <?php echo number_format($total_proposal_amount, 2); ?>
                                         </span>
-                                        <span class="text-muted small mt-1">
-                                            <i class="fas fa-tag me-1"></i>
-                                            Facility: <?php echo htmlspecialchars($row['proposal_type'] ?? 'N/A'); ?>
-                                        </span>
+                                        <div class="mt-2">
+                                            <?php foreach ($proposal['facilities'] as $fac): ?>
+                                                <div class="small text-muted mt-1">
+                                                    <i class="fas fa-tag me-1"></i>
+                                                    <?php echo htmlspecialchars($fac['type']); ?>: BDT <?php echo number_format($fac['amount'], 2); ?>
+                                                </div>
+                                            <?php endforeach; ?>
+                                        </div>
                                     </div>
                                 <?php else: ?>
                                     <div class="d-flex flex-column">
-                                        <span class="fw-semibold text-secondary">
+                                        <div class="fw-semibold text-secondary mb-2">
                                             <i class="fas fa-layer-group text-info me-1"></i>
-                                            Type: <?php echo htmlspecialchars($row['proposal_type'] ?? 'N/A'); ?>
-                                        </span>
-                                        <span class="font-monospace fw-bold text-dark mt-1">
-                                            <i class="fas fa-money-bill-wave text-success me-1"></i>
-                                            Amount: BDT <?php echo number_format(floatval($row['proposal_amount'] ?? 0), 2); ?>
-                                        </span>
+                                            Total Amount: BDT <?php echo number_format($total_proposal_amount, 2); ?>
+                                        </div>
+                                        <div class="small text-muted">
+                                            <?php foreach ($proposal['facilities'] as $fac): ?>
+                                                <div class="mt-1">
+                                                    <i class="fas fa-tag me-1"></i>
+                                                    <?php echo htmlspecialchars($fac['type']); ?>: BDT <?php echo number_format($fac['amount'], 2); ?>
+                                                </div>
+                                            <?php endforeach; ?>
+                                        </div>
                                     </div>
                                 <?php endif; ?>
                             </td>
                             <td style="vertical-align: middle;">
-                                <?php if ($active_filter === 'Approval/Sanction' && !empty($row['sanction_letter_ref_no'])): ?>
+                                <?php if ($active_filter === 'Approval/Sanction' && !empty($proposal['sanction_letter_ref_no'])): ?>
                                     <span class="badge bg-success font-monospace text-white px-2 py-1 shadow-sm" style="font-size: 0.75rem;">
-                                        <i class="fas fa-file-contract me-1"></i><?php echo htmlspecialchars($row['sanction_letter_ref_no']); ?>
+                                        <i class="fas fa-file-contract me-1"></i><?php echo htmlspecialchars($proposal['sanction_letter_ref_no']); ?>
                                     </span>
                                 <?php else: ?>
                                     <span class="badge bg-dark font-monospace text-warning px-2 py-1 shadow-sm" style="font-size: 0.75rem;">
-                                        <i class="fas fa-hashtag me-1"></i><?php echo htmlspecialchars($row['proposal_ref'] ?? 'N/A'); ?>
+                                        <i class="fas fa-hashtag me-1"></i><?php echo htmlspecialchars($proposal['proposal_ref'] ?? 'N/A'); ?>
                                     </span>
                                 <?php endif; ?>
                             </td>
@@ -822,7 +830,7 @@ function buildStageUrl($stage_name, $from, $to) {
                                         <i class="fas fa-user-tie text-secondary" style="font-size: 0.8rem;"></i>
                                     </div>
                                     <div>
-                                        <span class="fw-medium text-dark"><?php echo !empty($row['officer_name']) ? htmlspecialchars($row['officer_name']) : 'System Core'; ?></span>
+                                        <span class="fw-medium text-dark"><?php echo !empty($proposal['officer_name']) ? htmlspecialchars($proposal['officer_name']) : 'System Core'; ?></span>
                                         <div class="small text-muted">
                                             <?php echo ($active_filter === 'Approval/Sanction') ? 'Sanctioned' : 'Assigned'; ?>
                                         </div>
@@ -845,7 +853,8 @@ function buildStageUrl($stage_name, $from, $to) {
 </div>
 <?php endif; ?>
 
-    <div class="card shadow-sm border-0 mb-4 bg-white">
+    <!-- Workforce Panel -->
+<div class="card shadow-sm border-0 mb-4 bg-white">
     <div class="card-header bg-dark text-white fw-bold d-flex justify-content-between align-items-center py-2" style="font-size:14px; cursor: pointer;" onclick="toggleWorkforcePanel()">
         <span><i class="fas fa-network-wired text-warning me-2"></i> Officers & Current Assignments</span>
         <span id="panel-toggle-icon"><i class="fas fa-chevron-down"></i> Click to Expand</span>
@@ -862,6 +871,7 @@ function buildStageUrl($stage_name, $from, $to) {
                             <i class="fas fa-user-shield me-1 text-primary"></i> Team Leader: <?= htmlspecialchars($g_data['leader']) ?>
                         </span>
                     </div>
+                   
                     <div class="table-responsive">
                         <table class="table table-sm table-striped table-hover mb-0 small align-middle m-0">
                             <thead class="table-light text-muted" style="font-size:12px;">
@@ -872,9 +882,9 @@ function buildStageUrl($stage_name, $from, $to) {
                                 </tr>
                             </thead>
                             <tbody>
-                                <?php 
+                                <?php
                                 $has_members = false;
-                                foreach ($g_data['roster'] as $staff): 
+                                foreach ($g_data['roster'] as $staff):
                                     if ($staff['full_name'] === $g_data['leader']) {
                                         continue;
                                     }
@@ -884,9 +894,34 @@ function buildStageUrl($stage_name, $from, $to) {
                                         <td class="ps-3 py-2">
                                             <div class="fw-bold text-dark"><?= htmlspecialchars(!empty($staff['full_name']) ? $staff['full_name'] : $staff['username']) ?></div>
                                             <div class="text-muted font-monospace" style="font-size:10px;">ID: <?= htmlspecialchars($staff['employee_id'] ?? 'N/A') ?></div>
-                                         </td>
-                                        <td class="text-center">...</td>
-                                        <td>...</td>
+                                        </td>
+                                        <td class="text-center">
+                                            <?php if ($staff['active_count'] > 0): ?>
+                                                <span class="badge bg-warning text-dark rounded-pill px-3 py-1 font-monospace fw-bold">
+                                                    <i class="fas fa-tasks me-1"></i><?= $staff['active_count'] ?> Files
+                                                </span>
+                                            <?php else: ?>
+                                                <span class="badge bg-success text-white rounded-pill px-3 py-1 font-monospace fw-bold">
+                                                    <i class="fas fa-check-circle me-1"></i>0 Files
+                                                </span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td>
+                                            <?php
+                                            if (!empty($staff['client_details'])) {
+                                                foreach($staff['client_details'] as $client_item) {
+                                                    $status_class = ($client_item['status'] == 'Pending') ? 'warning' : 'info';
+                                                    echo '<div class="d-inline-block me-1 my-1">';
+                                                    echo '<span class="badge bg-' . $status_class . '-subtle text-' . $status_class . ' border border-' . $status_class . '-subtle px-2 py-1 shadow-sm" style="font-size:11px;">';
+                                                    echo '<i class="fas fa-building me-1"></i>' . htmlspecialchars($client_item['name']);
+                                                    echo '<span class="ms-1 badge bg-light text-dark">' . htmlspecialchars($client_item['status']) . '</span>';
+                                                    echo '</span></div>';
+                                                }
+                                            } else {
+                                                echo '<span class="text-success font-monospace small"><i class="fas fa-circle-check text-success me-1"></i>Ready for Assignment</span>';
+                                            }
+                                            ?>
+                                        </td>
                                     </tr>
                                 <?php endforeach; ?>
                             </tbody>

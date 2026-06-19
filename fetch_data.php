@@ -1,134 +1,206 @@
 <?php
+// ============================================================
+// 1. START OUTPUT BUFFERING AND ERROR HANDLING
+// ============================================================
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
+ob_start();
+
 include 'db.php';
 session_start();
 $isAdmin = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin');
 
-// Read server-side execution variables from DataTables
-$draw = isset($_POST['draw']) ? intval($_POST['draw']) : 1;
-$start = isset($_POST['start']) ? intval($_POST['start']) : 0;
-$rowperpage = isset($_POST['length']) ? intval($_POST['length']) : 10;
-$searchValue = isset($_POST['search']['value']) ? $conn->real_escape_string($_POST['search']['value']) : '';
-
-// Direct sorting optimization parameters
-$columnSortOrder = (isset($_POST['order'][0]['dir']) && $_POST['order'][0]['dir'] === 'asc') ? 'ASC' : 'DESC';
-
-if (isset($_POST['order'][0]['column'])) {
-    $columnIndex = intval($_POST['order'][0]['column']);
-    $columnMap = [
-        0 => 'o.client',
-        1 => 'o.branch_code',
-        2 => 'o.division',
-        3 => 'o.cabinet_name',
-        4 => 'o.shelf_name',
-        5 => 'o.file_no',
-        6 => 'o.id', // Safe fallback order index for aggregations
-        7 => 'o.is_checked_out'
-    ];
-    $orderByColumn = $columnMap[$columnIndex] ?? 'o.id';
-} else {
-    $orderByColumn = 'o.id';
+// ============================================================
+// 2. FUNCTION TO SEND JSON RESPONSE
+// ============================================================
+function sendJsonResponse($data) {
+    while (ob_get_level()) {
+        ob_end_clean();
+    }
+    header('Content-Type: application/json');
+    echo json_encode($data);
+    exit;
 }
 
-// 1. TOTAL RECORDS COUNT
-$totalRecordsQuery = "SELECT COUNT(*) AS total FROM office_files WHERE is_deleted = 0";
-$totalRecordsResult = $conn->query($totalRecordsQuery);
-$totalRecords = $totalRecordsResult->fetch_assoc()['total'] ?? 0;
-
-// 2. FILTERED RECORDS QUERY
-$searchQuery = "";
-if (!empty($searchValue)) {
-    $searchQuery = " AND (o.client LIKE '%$searchValue%' 
-                    OR o.file_no LIKE '%$searchValue%' 
-                    OR o.branch_code LIKE '%$searchValue%' 
-                    OR o.branch_name LIKE '%$searchValue%' 
-                    OR o.division LIKE '%$searchValue%'
-                    OR o.cabinet_name LIKE '%$searchValue%' 
-                    OR o.shelf_name LIKE '%$searchValue%')";
+// ============================================================
+// 3. CHECK DATABASE CONNECTION
+// ============================================================
+if (!isset($conn) || $conn->connect_error) {
+    sendJsonResponse([
+        "draw" => intval($_POST['draw'] ?? 1),
+        "iTotalRecords" => 0,
+        "iTotalDisplayRecords" => 0,
+        "aaData" => [],
+        "error" => "Database connection failed"
+    ]);
 }
 
-$filterQuery = "SELECT COUNT(*) AS total FROM office_files o WHERE o.is_deleted = 0" . $searchQuery;
-$filterResult = $conn->query($filterQuery);
-$totalRecordwithFilter = $filterResult->fetch_assoc()['total'] ?? 0;
+try {
+    $draw = isset($_POST['draw']) ? intval($_POST['draw']) : 1;
+    $start = isset($_POST['start']) ? intval($_POST['start']) : 0;
+    $rowperpage = isset($_POST['length']) ? intval($_POST['length']) : 10;
+    $searchValue = isset($_POST['search']['value']) ? $conn->real_escape_string($_POST['search']['value']) : '';
 
-// 3. MASTER FETCH QUERY
+    $columnSortOrder = (isset($_POST['order'][0]['dir']) && $_POST['order'][0]['dir'] === 'asc') ? 'ASC' : 'DESC';
+
+    if (isset($_POST['order'][0]['column'])) {
+        $columnIndex = intval($_POST['order'][0]['column']);
+        $columnMap = [
+            0 => 'o.client',
+            1 => 'o.branch_code',
+            2 => 'o.division',
+            3 => 'o.cabinet_name',
+            4 => 'o.shelf_name',
+            5 => 'o.file_no',
+            6 => 'ff.last_sanction_date',
+            7 => 'o.remarks'
+        ];
+        $orderByColumn = $columnMap[$columnIndex] ?? 'o.id';
+    } else {
+        $orderByColumn = 'o.id';
+        $columnSortOrder = 'DESC';
+    }
+
+    // 1. Get total record count overall
+    $totalRecordsQuery = "SELECT COUNT(*) AS allcount FROM office_files WHERE is_deleted = 0";
+    $totalRecordsResult = $conn->query($totalRecordsQuery);
+    if (!$totalRecordsResult) {
+        throw new Exception("Error getting total records: " . $conn->error);
+    }
+    $totalRecordsRow = $totalRecordsResult->fetch_assoc();
+    $totalRecords = $totalRecordsRow['allcount'] ?? 0;
+
+    // 2. Build search filter constraints
+    $searchQuery = "";
+    if ($searchValue != '') {
+        $searchQuery = " AND (o.client LIKE '%".$searchValue."%' OR 
+                              o.branch_code LIKE '%".$searchValue."%' OR 
+                              o.branch_name LIKE '%".$searchValue."%' OR 
+                              o.zone LIKE '%".$searchValue."%' OR 
+                              o.division LIKE '%".$searchValue."%' OR 
+                              o.file_no LIKE '%".$searchValue."%' OR
+                              o.remarks LIKE '%".$searchValue."%') ";
+    }
+
+    // 3. Get total filtered record count
+    $totalWithFilterQuery = "SELECT COUNT(*) AS allcount FROM office_files o WHERE o.is_deleted = 0".$searchQuery;
+    $totalWithFilterResult = $conn->query($totalWithFilterQuery);
+    if (!$totalWithFilterResult) {
+        throw new Exception("Error getting filtered count: " . $conn->error);
+    }
+    $totalWithFilterRow = $totalWithFilterResult->fetch_assoc();
+    $totalRecordwithFilter = $totalWithFilterRow['allcount'] ?? 0;
+
+    // 4. Fetch the data - Make sure to include client_id
+    // In fetch_data.php, update the query to show all files
+// In fetch_data.php, update the query to show all files (not just linked ones)
+// Remove any condition that filters by client_id
+
 $empQuery = "SELECT o.*, 
-                    (SELECT MAX(f.sanction_date) FROM file_facilities f WHERE f.file_record_id = o.id) AS last_sanction_date,
-                    (SELECT u.full_name FROM users u WHERE u.id = o.checked_out_by_user_id) AS cabinet_holder_name
+                    COALESCE(ft.transfer_count, 0) AS transfer_count, 
+                    ff.last_sanction_date
              FROM office_files o
-             WHERE o.is_deleted = 0" . $searchQuery . " 
-             ORDER BY " . $orderByColumn . " " . $columnSortOrder . " 
-             LIMIT " . $start . ", " . $rowperpage;
+             LEFT JOIN (
+                 SELECT file_id, COUNT(*) AS transfer_count FROM file_transfers GROUP BY file_id
+             ) ft ON o.id = ft.file_id
+             LEFT JOIN (
+                 SELECT file_record_id, MAX(sanction_date) AS last_sanction_date FROM file_facilities GROUP BY file_record_id
+             ) ff ON o.id = ff.file_record_id
+             WHERE o.is_deleted = 0 ".$searchQuery." 
+             ORDER BY ".$orderByColumn." ".$columnSortOrder." 
+             LIMIT ".intval($start).", ".intval($rowperpage);
 
-$result = $conn->query($empQuery);
-$data = array();
+    $empRecords = $conn->query($empQuery);
+    if (!$empRecords) {
+        throw new Exception("Error fetching records: " . $conn->error);
+    }
 
-if ($result) {
-    while ($row = $result->fetch_assoc()) {
-        $file_id = intval($row['id']);
-        $is_checked_out = isset($row['is_checked_out']) ? intval($row['is_checked_out']) : 0;
-        $holder_name = !empty($row['cabinet_holder_name']) ? htmlspecialchars($row['cabinet_holder_name']) : 'Unknown User';
+    $data = array();
 
-        // Interface UI Badges & Columns Generation
-        $client_name_html = '<strong>' . htmlspecialchars($row['client'] ?? '') . '</strong>';
+    while ($row = $empRecords->fetch_assoc()) {
+        $file_id = $row['id'];
+        $movements = $row['transfer_count'] ?? 0;
+        $is_assigned = !empty($row['client_id']) && $row['client_id'] > 0;
         
-        $branch_details_html = '<div class="small text-dark fw-semibold">' . htmlspecialchars($row['branch_code'] ?? '') . '</div>' .
-                               '<div class="text-muted" style="font-size: 0.72rem;">' . htmlspecialchars($row['branch_name'] ?? 'Unassigned') . '</div>';
-        
-        $sanction_date_html = !empty($row['last_sanction_date']) ? 
-            '<span class="badge bg-light text-dark border"><i class="far fa-calendar-check text-success me-1"></i>' . date('d-M-Y', strtotime($row['last_sanction_date'])) . '</span>' : 
-            '<span class="text-muted small italic">No Facilities</span>';
-
-        $division_html = '<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1" style="font-size:0.72rem;">' . htmlspecialchars($row['division'] ?? '') . '</span>';
-        $cabinet_html = '<span class="badge bg-info text-white cabinet-badge shadow-sm">' . htmlspecialchars($row['cabinet_name'] ?? '') . '</span>';
-        $shelf_html = '<span class="badge bg-primary text-white border shelf-badge">' . htmlspecialchars($row['shelf_name'] ?? '') . '</span>';
-        $file_no_html = '<span class="badge text-bg-secondary">' . htmlspecialchars($row['file_no'] ?? '') . '</span>';
-
-        // Cabinet Tracker Status Generation
-        if ($is_checked_out === 1) {
-            $cabinet_tracker_html = '<div class="mb-1"><span class="badge bg-danger text-white px-2 py-1 shadow-sm" style="font-size: 11px;">' .
-                                    '<i class="fas fa-times-circle me-1"></i>Out of Cabinet' .
-                                    '</span></div>' .
-                                    '<div style="font-size:10px; font-weight:600;" class="text-muted"><i class="fas fa-user text-secondary me-1"></i>By: ' . $holder_name . '</div>';
-                                    
-            $toggle_movement_btn = "<a href='toggle_file_status.php?file_id=$file_id&action=checkin' class='btn btn-sm btn-success text-white fw-bold shadow-sm' title='Return file to Cabinet' onclick='return confirm(\"Return this client file back to the cabinet?\")'><i class='fas fa-undo me-1'></i>Return</a>";
+        // View history tooltip setup
+        if ($movements > 0) {
+            $viewBtnClass = "btn-success"; 
+            $viewTitle = "View History ($movements movements)";
         } else {
-            $cabinet_tracker_html = '<div class="mb-1"><span class="badge bg-success text-white px-2 py-1 shadow-sm" style="font-size: 11px;">' .
-                                    '<i class="fas fa-check-circle me-1"></i>In Cabinet' .
-                                    '</span></div>';
-                                    
-            $toggle_movement_btn = "<a href='toggle_file_status.php?file_id=$file_id&action=checkout' class='btn btn-sm btn-outline-danger fw-bold shadow-sm' title='Grab file from Cabinet' onclick='return confirm(\"Grab this file under your log profile tracking?\")'><i class='fas fa-hand-holding me-1'></i>Grab</a>";
+            $viewBtnClass = "btn-dark"; 
+            $viewTitle = "No History Found";
         }
 
-        if (!empty($row['remarks'])) {
-            $cabinet_tracker_html .= '<div class="mt-1 small text-muted text-truncate" style="max-width:180px; font-size:10px;">' . htmlspecialchars($row['remarks']) . '</div>';
+        // Build Last Sanction Date formatting logic
+        $sanction_date_html = "<span class='text-muted small'>No Sanction Date</span>";
+        if (!empty($row['last_sanction_date']) && $row['last_sanction_date'] !== '0000-00-00') {
+            $sanction_date_html = "<span class='badge bg-success-subtle text-success border border-success-subtle px-2 py-1'>" . 
+                                  "<i class='far fa-calendar-check me-1'></i>" . date("d-m-Y", strtotime($row['last_sanction_date'])) . 
+                                  "</span>";
         }
 
-        // Setup dynamic elements for view button variants from your codebase patterns
-        $viewBtnClass = ($is_checked_out === 1) ? 'btn-outline-secondary' : 'btn-outline-primary';
-        $viewTitle = ($is_checked_out === 1) ? 'View Details (Checked Out)' : 'View Details';
-
-        // Construct complete unified action column system matrix layout
-        $actions_html = "<div class='d-flex gap-1 justify-content-center align-items-center flex-wrap'>";
+        // Compile actions markup - WITH ASSIGN BUTTON
+        $actions_html = "<div class='d-flex gap-1 justify-content-center flex-wrap'>";
         
-        // NEW ADVANCED CONTROLS (Cabinet Tracker & History Telemetry Log Tracking Button)
-        $actions_html .= $toggle_movement_btn;
-        $actions_html .= "<button type='button' class='btn btn-sm btn-light border text-dark shadow-sm fw-bold view-history-log-btn' data-id='$file_id' title='View History Log'><i class='fas fa-history text-secondary me-1'></i>Log</button>";
-        
-        // YOUR EXACT EXISTING INTERFACE OPTIONS PRESERVED PRECISELY
         if ($isAdmin) {
             $actions_html .= "<a href='edit.php?id=$file_id' class='btn btn-sm btn-primary' title='Edit'><i class='fas fa-edit'></i></a>";
         }
+        
         $actions_html .= "<a href='transfer_file.php?id=$file_id' class='btn btn-sm btn-outline-primary' title='Transfer Division'><i class='fas fa-exchange-alt'></i></a>";
         $actions_html .= "<a href='view_details.php?id=$file_id' class='btn btn-sm $viewBtnClass' title='$viewTitle'><i class='fas fa-eye'></i></a>";
-        $actions_html .= "<a href='more_details.php?id=$file_id' class='btn btn-sm btn-success' title='More Details'>info</a>"; 
-        $actions_html .= "<a href='assign_proposal.php?id=$file_id' class='btn btn-sm btn-info' title='Assign'><i class='fas fa-user-plus'></i> Assign</a>";
+        $actions_html .= "<a href='more_details.php?id=$file_id' class='btn btn-sm btn-success' title='More Details'><i class='fas fa-info-circle'></i></a>"; 
+        $actions_html .= "<a href='assign_proposal.php?id=" . intval($row['id']) . "' class='btn btn-sm btn-info' title='Assign Proposal'><i class='fas fa-user-plus'></i></a>";
+        
+        // NEW: Assign to Client button
+if (!$is_assigned) {
+    $client_name = addslashes($row['client'] ?? '');
+    $file_no = addslashes($row['file_no'] ?? '');
+    $actions_html .= "<button class='btn btn-sm btn-warning assign-file-btn' 
+                        title='Assign to Client' 
+                        data-file-id='$file_id' 
+                        data-file-name='$client_name' 
+                        data-file-no='$file_no' 
+                        style='background: #ffc72c; color: #006a4e; border: none; padding: 4px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; cursor: pointer;'>";
+    $actions_html .= "<i class='fas fa-link'></i> Assign";
+    $actions_html .= "</button>";
+} else {
+    $actions_html .= "<span class='badge bg-success' title='Already assigned to a client'><i class='fas fa-check'></i> Linked</span>";
+}
         
         if ($isAdmin) {
-            $actions_html .= "<a href='delete.php?id=$file_id' class='btn btn-sm btn-danger' title='Delete' onclick='return confirm(\"Are you sure?\")'><i class='fas fa-trash'></i></a>";
+            $actions_html .= "<a href='delete.php?id=$file_id' class='btn btn-sm btn-danger' onclick='return confirm(\"Are you sure?\")' title='Delete'><i class='fas fa-trash'></i></a>";
         }
-        
         $actions_html .= "</div>";
 
+        // Safe HTML escaping
+        $client_name = htmlspecialchars($row['client'] ?? '');
+        $branch_code = htmlspecialchars($row['branch_code'] ?? '');
+        $branch_name = htmlspecialchars($row['branch_name'] ?? '');
+        $zone = htmlspecialchars($row['zone'] ?? '');
+        $division = htmlspecialchars($row['division'] ?? '');
+        $cabinet_name = htmlspecialchars($row['cabinet_name'] ?? '');
+        $shelf_name = htmlspecialchars($row['shelf_name'] ?? '');
+        $file_no = htmlspecialchars($row['file_no'] ?? '');
+        $remarks = htmlspecialchars($row['remarks'] ?? '');
+
+        // Build HTML for each column
+        $client_name_html = '<div class="fw-bold text-dark mb-0" style="font-size: 0.95rem;">' . $client_name . '</div>';
+        
+        $branch_details_html = '<div class="mb-0 fw-semibold text-secondary"><i class="fas fa-code-branch text-info small me-1"></i>' . $branch_code . ' - ' . $branch_name . '</div>' .
+                               '<small class="text-muted font-monospace" style="font-size: 0.72rem;"><i class="fas fa-globe me-1"></i>' . $zone . '</small>';
+
+        $div_badge_class = ($division === 'Investment') ? 'bg-success' : (($division === 'SME') ? 'bg-warning text-dark' : 'bg-info text-dark');
+        $division_html = '<span class="badge ' . $div_badge_class . ' fw-bold px-2 py-1">' . $division . '</span>';
+
+        $cabinet_html = '<span class="badge bg-info text-white cabinet-badge shadow-sm">' . $cabinet_name . '</span>';
+        
+        $shelf_html = '<span class="badge bg-primary text-white border shelf-badge">' . $shelf_name . '</span>';
+        
+        $file_no_html = '<span class="badge text-bg-secondary">' . $file_no . '</span>';
+
+        $remarks_html = !empty($remarks) ? '<small class="text-muted d-block text-truncate font-monospace" style="max-width: 250px; font-size:0.75rem;"><strong>Note:</strong> ' . $remarks . '</small>' : '';
+
+        // Format array output
         $data[] = array(
             "client"             => $client_name_html,
             "branch_code"        => $branch_details_html,
@@ -137,18 +209,32 @@ if ($result) {
             "shelf_name"         => $shelf_html,
             "file_no"            => $file_no_html,
             "last_sanction_date" => $sanction_date_html,
-            "remarks"            => $cabinet_tracker_html,
+            "remarks"            => $remarks_html,
             "actions"            => $actions_html
         );
     }
+
+    // Send back JSON payload
+    $response = array(
+        "draw" => intval($draw),
+        "iTotalRecords" => intval($totalRecords),
+        "iTotalDisplayRecords" => intval($totalRecordwithFilter),
+        "aaData" => $data
+    );
+
+    sendJsonResponse($response);
+
+} catch (Exception $e) {
+    sendJsonResponse([
+        "draw" => intval($_POST['draw'] ?? 1),
+        "iTotalRecords" => 0,
+        "iTotalDisplayRecords" => 0,
+        "aaData" => [],
+        "error" => $e->getMessage()
+    ]);
 }
 
-$response = array(
-    "draw"                 => $draw,
-    "iTotalRecords"        => $totalRecords,
-    "iTotalDisplayRecords" => $totalRecordwithFilter,
-    "aaData"               => $data
-);
-
-echo json_encode($response);
-exit;
+while (ob_get_level()) {
+    ob_end_clean();
+}
+?>

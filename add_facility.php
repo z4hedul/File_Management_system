@@ -1,8 +1,11 @@
 <?php
+// Start output buffering to prevent header errors
+ob_start();
+
 session_start();
 include 'db.php';
-include 'header.php';
 
+// Check login FIRST before including header
 if (!isset($_SESSION['loggedin'])) {
     header('Location: login.php');
     exit;
@@ -11,31 +14,53 @@ if (!isset($_SESSION['loggedin'])) {
 $session_user_id = $_SESSION['id'] ?? $_SESSION['user_id'] ?? null;
 
 // ================= FLEXIBLE PARAMETER FALLBACK DETECTION =================
+// Check for file_id, id, or client_id
 if (isset($_GET['file_id'])) {
     $id = intval($_GET['file_id']);
 } elseif (isset($_GET['id'])) {
     $id = intval($_GET['id']);
+} elseif (isset($_GET['client_id'])) {
+    // If client_id is passed, we need to find the file record for this client
+    $client_id = intval($_GET['client_id']);
+    $file_stmt = $conn->prepare("SELECT id FROM office_files WHERE client_id = ? AND is_deleted = 0 LIMIT 1");
+    $file_stmt->bind_param("i", $client_id);
+    $file_stmt->execute();
+    $file_result = $file_stmt->get_result()->fetch_assoc();
+    if ($file_result) {
+        $id = $file_result['id'];
+    } else {
+        // No file found for this client - show error or redirect
+        $_SESSION['error'] = "No file record found for this client. Please add a file first.";
+        header("Location: client_profile.php?id=" . $client_id);
+        exit;
+    }
+    $file_stmt->close();
 } else {
     $id = 0;
 }
 
 if ($id <= 0) {
+    $_SESSION['error'] = "No file selected. Please select a file first.";
     header("Location: index.php");
     exit;
 }
 
-// Fetch master record information using our parsed identifier variable
-$stmt = $conn->prepare("SELECT client, file_no FROM office_files WHERE id = ?");
+// Fetch master record information
+$stmt = $conn->prepare("SELECT client, file_no FROM office_files WHERE id = ? AND is_deleted = 0");
 $stmt->bind_param("i", $id);
 $stmt->execute();
 $main_data = $stmt->get_result()->fetch_assoc();
 
 if (!$main_data) {
+    $_SESSION['error'] = "File record not found.";
     header("Location: index.php");
     exit;
 }
 
-// Fetch Dynamic Lookup options from lookup database table for select menu dropdown engine
+// ===== NOW include header AFTER all redirects =====
+include 'header.php';
+
+// Fetch Dynamic Lookup options
 $facility_options = [];
 $lookup_res = $conn->query("SELECT facility_name AS facility_type, facility_group FROM facilities_type WHERE is_active = 1 ORDER BY facility_group ASC, facility_name ASC");
 if ($lookup_res && $lookup_res->num_rows > 0) {
@@ -62,7 +87,7 @@ $status_message = '';
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // Shared Data for this specific entry session
-    $f_date = $_POST['sanction_date'];
+    $f_date = $_POST['sanction_date'] ?? date('Y-m-d');
     $ref_suffix = trim($_POST['sanction_letter_ref_no_suffix'] ?? '');
     $s_ref   = $sanction_ref_prefix . $ref_suffix;
 
@@ -70,8 +95,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $c_date = !empty($_POST['comm_meet_date']) ? $_POST['comm_meet_date'] : null;
     $b_no   = !empty($_POST['board_meet_no']) ? $_POST['board_meet_no'] : null;
     $b_date = !empty($_POST['board_meet_date']) ? $_POST['board_meet_date'] : null;
-
-    $last_facility_id = null;
 
     // Start transaction safety layer
     $conn->begin_transaction();
@@ -81,7 +104,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         if (isset($_POST['facility_types'])) {
             foreach ($_POST['facility_types'] as $key => $type) {
                 if (!empty($type)) {
-                    $amt = $_POST['sanction_amounts'][$key];
+                    $amt = $_POST['sanction_amounts'][$key] ?? 0;
                     $facility_as = trim($_POST['facility_as'][$key] ?? '');
                     $facility_group = 'General';
 
@@ -127,15 +150,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             }
         }
 
-        // 2. Handle File Uploads (Standard Workflow + Custom Ad-Hoc Attachments)
+        // 2. Handle File Uploads
         $upload_dir = "uploads/";
         if (!is_dir($upload_dir)) { 
             mkdir($upload_dir, 0777, true); 
         }
 
-        // Helper closure engine payload execution task function
+        // Helper function for uploads
         $process_upload = function($file_array, $description) use ($id, $f_date, $client_name, $upload_dir, $conn) {
-            if (!empty($file_array['name'])) {
+            if (!empty($file_array['name']) && $file_array['error'] === UPLOAD_ERR_OK) {
                 $ext = pathinfo($file_array['name'], PATHINFO_EXTENSION);
                 $raw_filename = $client_name . '-' . $description . '-' . $f_date;
                 $clean_filename = preg_replace("/[^a-zA-Z0-9_-]/", "_", $raw_filename);
@@ -170,8 +193,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         if (isset($_FILES['custom_attachments']) && isset($_POST['custom_descriptions'])) {
             foreach ($_FILES['custom_attachments']['name'] as $index => $name) {
-                if (!empty($name)) {
-                    $custom_desc = trim($_POST['custom_descriptions'][$index]);
+                if (!empty($name) && $_FILES['custom_attachments']['error'][$index] === UPLOAD_ERR_OK) {
+                    $custom_desc = trim($_POST['custom_descriptions'][$index] ?? '');
                     if (empty($custom_desc)) {
                         $custom_desc = "Additional Document " . ($index + 1);
                     }
@@ -187,8 +210,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             }
         }
 
-        // Commit operations if everything executes error-free
-        echo '<script>window.location.href = "more_details.php?id=' . $id . '&status=added";</script>';
+        $conn->commit();
+        
+        // Redirect after successful save
+        header("Location: more_details.php?id=" . $id . "&status=added");
         exit;
 
     } catch (Exception $e) {
@@ -233,7 +258,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         50% { transform: scale(1.2); }
         100% { transform: scale(1); }
     }
-    /* Amount to Words Display Styles */
     .amount-word-display {
         font-size: 0.7rem;
         background: #e8f5e9;
@@ -492,19 +516,17 @@ function updateAmountWords(inputElement) {
 // Attach event listeners to all amount inputs
 function attachAmountListeners() {
     document.querySelectorAll('.amount-input').forEach(input => {
-        // Remove existing listener to avoid duplicates
         input.removeEventListener('input', function() {});
         input.addEventListener('input', function() {
             updateAmountWords(this);
         });
-        // Trigger initial update if there's a value
         if (input.value && parseFloat(input.value) > 0) {
             updateAmountWords(input);
         }
     });
 }
 
-// Global variable containing standard dropdown options to allow javascript replication loops
+// Global variable containing standard dropdown options
 const facilityOptionsHtml = `<?php 
     $html = '<option value="">-- Select Facility Type --</option>';
     foreach ($facility_options as $opt) {
@@ -516,7 +538,7 @@ const facilityOptionsHtml = `<?php
 
 const facilityAsOptionsHtml = `<?php echo addslashes(renderFacilityAsOptions($facility_as_options)); ?>`;
 
-// Handles custom selection toggles for facility structural options
+// Handles custom selection toggles
 document.addEventListener('change', function(e) {
     if (e.target.classList.contains('facility-type-select')) {
         const row = e.target.closest('.facility-row');
@@ -577,7 +599,7 @@ boardToggle && boardToggle.addEventListener('click', function() {
     }
 });
 
-// Facility duplication array handler
+// Facility duplication
 document.getElementById('add-more').onclick = function() {
     let container = document.getElementById('facility-container');
     let newRow = document.createElement('div');
@@ -611,7 +633,6 @@ document.getElementById('add-more').onclick = function() {
         </div>`;
     container.appendChild(newRow);
     
-    // Attach event listener to the new amount input
     const newAmountInput = newRow.querySelector('.amount-input');
     if (newAmountInput) {
         newAmountInput.addEventListener('input', function() {
@@ -620,7 +641,7 @@ document.getElementById('add-more').onclick = function() {
     }
 };
 
-// Dynamic Attachment Logic Injection Engine
+// Dynamic Attachment Logic
 document.getElementById('add-more-attachments').onclick = function() {
     let container = document.getElementById('dynamic-attachments-container');
     let newRow = document.createElement('div');
@@ -642,7 +663,7 @@ document.getElementById('add-more-attachments').onclick = function() {
     container.appendChild(newRow);
 };
 
-// Shared global click element interceptor
+// Remove row handlers
 document.addEventListener('click', function(e){
     if(e.target.closest('.remove-row')) {
         e.target.closest('.facility-row').remove();
@@ -662,3 +683,7 @@ include 'footer.php';
 ?>
 </body>
 </html>
+<?php
+// Flush output buffer
+ob_end_flush();
+?>

@@ -1,7 +1,7 @@
 <?php
 session_start();
 include 'db.php';
-include 'header.php';
+
 // 1. SECURITY CHECK: Redirect anyone who is NOT an admin
 if (!isset($_SESSION['loggedin']) || $_SESSION['role'] !== 'admin') {
     header("Location: index.php"); // Send them back to the dashboard
@@ -19,8 +19,9 @@ if(isset($_GET['restore_id'])) {
 // 3. Fetch only deleted files
 $sql = "SELECT * FROM office_files WHERE is_deleted = 1";
 $result = $conn->query($sql)
+
 ?>
-<?php if(isset($_GET['msg']) && $_GET['msg'] == 'deleted_forever'): ?>
+<?php if(isset($_GET['msg']) && $_GET['msg'] == 'deleted_forever'): include 'header.php'; ?>
     <div class="alert alert-danger alert-dismissible fade show shadow-sm" role="alert">
         <i class="fas fa-exclamation-triangle me-2"></i> 
         The record has been <strong>permanently removed</strong> from the database.

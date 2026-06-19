@@ -1,7 +1,7 @@
 <?php
 session_start();
 include 'db.php';
-include 'header.php';
+
 // 1. Validate ID
 $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 $stmt = $conn->prepare("SELECT * FROM office_files WHERE id = ?");
@@ -49,6 +49,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $error = "Transfer failed: " . $e->getMessage();
     }
 }
+include 'header.php';
 ?>
 
 <!DOCTYPE html>
