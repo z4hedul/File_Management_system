@@ -73,6 +73,7 @@ if ($lookup_res) {
 $facility_option_names = array_column($facility_options, 'facility_type');
 $facility_options_html = renderFacilityOptions($facility_options, '');
 $facility_as_options = ['Fresh', 'Renewal', 'Time Extension', 'Renewal with Enhancement'];
+$power_delegation_options = ['MD', 'Board'];
 
 $sanction_ref_prefix = 'FSIB/HO/INVT/';
 $status_message = '';
@@ -117,11 +118,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $conn->begin_transaction();
     try {
         if (isset($_POST['row_keys']) && is_array($_POST['row_keys'])) {
-            $update_sql = 'UPDATE file_facilities SET sanction_letter_ref_no = ?, sanction_date = ?, facility_type = ?, facility_as = ?, amount = ?, comm_meet_no = ?, comm_meet_date = ?, board_meet_no = ?, board_meet_date = ?, updated_by = ? WHERE id = ?';
+            $update_sql = 'UPDATE file_facilities SET 
+                            sanction_letter_ref_no = ?, 
+                            sanction_date = ?, 
+                            facility_type = ?, 
+                            facility_as = ?, 
+                            amount = ?, 
+                            comm_meet_no = ?, 
+                            comm_meet_date = ?, 
+                            board_meet_no = ?, 
+                            board_meet_date = ?,
+                            power_delegation = ?,
+                            updated_by = ? 
+                          WHERE id = ?';
             $update_stmt = $conn->prepare($update_sql);
 
-            $insert_sql = 'INSERT INTO file_facilities (file_record_id, user_id, updated_by, sanction_letter_ref_no, sanction_date, facility_type, facility_as, amount, comm_meet_no, comm_meet_date, board_meet_no, board_meet_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+            $insert_sql = 'INSERT INTO file_facilities 
+                            (file_record_id, user_id, updated_by, sanction_letter_ref_no, sanction_date, 
+                             facility_type, facility_as, amount, comm_meet_no, comm_meet_date, 
+                             board_meet_no, board_meet_date, power_delegation) 
+                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
             $insert_stmt = $conn->prepare($insert_sql);
+
+            // Security update/insert
+            $sec_update_sql = 'UPDATE facility_securities SET 
+                                security_type = ?,
+                                security_value = ?,
+                                security_description = ?
+                              WHERE facility_id = ?';
+            $sec_update_stmt = $conn->prepare($sec_update_sql);
+            
+            $sec_insert_sql = 'INSERT INTO facility_securities 
+                                (facility_id, security_type, security_value, security_description) 
+                              VALUES (?, ?, ?, ?)';
+            $sec_insert_stmt = $conn->prepare($sec_insert_sql);
 
             foreach ($_POST['row_keys'] as $index => $row_key) {
                 $row_date = trim($_POST['f_dates'][$index] ?? '');
@@ -139,15 +169,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 $facility_as = trim($_POST['f_as'][$index] ?? '');
+                $power_delegation = trim($_POST['f_power_delegation'][$index] ?? '');
 
                 $amount = floatval($_POST['f_amts'][$index] ?? 0);
                 $comm_no = trim($_POST['c_nos'][$index] ?? '');
                 $comm_date = trim($_POST['c_dates'][$index] ?? '');
                 $board_no = trim($_POST['b_nos'][$index] ?? '');
                 $board_date = trim($_POST['b_dates'][$index] ?? '');
+                
+                // Security fields
+                $sec_type = trim($_POST['sec_type'][$index] ?? '');
+                $sec_value = isset($_POST['sec_value'][$index]) && $_POST['sec_value'][$index] !== '' ? floatval($_POST['sec_value'][$index]) : null;
+                $sec_description = trim($_POST['sec_description'][$index] ?? '');
 
                 if ($existing_facility_id) {
-                    $fetch_current = $conn->prepare('SELECT sanction_letter_ref_no, sanction_date, facility_type, facility_as, amount, comm_meet_no, comm_meet_date, board_meet_no, board_meet_date FROM file_facilities WHERE id = ?');
+                    $fetch_current = $conn->prepare('SELECT sanction_letter_ref_no, sanction_date, facility_type, facility_as, amount, comm_meet_no, comm_meet_date, board_meet_no, board_meet_date, power_delegation FROM file_facilities WHERE id = ?');
                     $fetch_current->bind_param('i', $existing_facility_id);
                     $fetch_current->execute();
                     $current_data = $fetch_current->get_result()->fetch_assoc();
@@ -163,26 +199,63 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             ($current_data['comm_meet_no'] ?? '') !== $comm_no ||
                             ($current_data['comm_meet_date'] ?? '') !== $comm_date ||
                             ($current_data['board_meet_no'] ?? '') !== $board_no ||
-                            ($current_data['board_meet_date'] ?? '') !== $board_date
+                            ($current_data['board_meet_date'] ?? '') !== $board_date ||
+                            ($current_data['power_delegation'] ?? '') !== $power_delegation
                         );
 
                         if ($is_changed) {
-                            $update_stmt->bind_param('ssssdssssii', $full_ref_no, $row_date, $fac_type, $facility_as, $amount, $comm_no, $comm_date, $board_no, $board_date, $current_modifier_id, $existing_facility_id);
+                            $update_stmt->bind_param('ssssdsssssii', 
+                                $full_ref_no, $row_date, $fac_type, $facility_as, $amount, 
+                                $comm_no, $comm_date, $board_no, $board_date, 
+                                $power_delegation, $current_modifier_id, $existing_facility_id
+                            );
                             $update_stmt->execute();
                         }
 
                         $submitted_facility_ids[] = $existing_facility_id;
                     }
+                    
+                    // Update security for existing facility
+                    if (!empty($sec_type) && $sec_value !== null) {
+                        // Check if security exists
+                        $check_sec = $conn->prepare("SELECT id FROM facility_securities WHERE facility_id = ?");
+                        $check_sec->bind_param("i", $existing_facility_id);
+                        $check_sec->execute();
+                        $sec_exists = $check_sec->get_result()->num_rows > 0;
+                        $check_sec->close();
+                        
+                        if ($sec_exists) {
+                            $sec_update_stmt->bind_param("sdsi", $sec_type, $sec_value, $sec_description, $existing_facility_id);
+                            $sec_update_stmt->execute();
+                        } else {
+                            $sec_insert_stmt->bind_param("isds", $existing_facility_id, $sec_type, $sec_value, $sec_description);
+                            $sec_insert_stmt->execute();
+                        }
+                    }
+                    
                 } else {
                     $null_updated_by = null;
-                    $insert_stmt->bind_param('iiissssdssss', $file_record_id, $current_modifier_id, $null_updated_by, $full_ref_no, $row_date, $fac_type, $facility_as, $amount, $comm_no, $comm_date, $board_no, $board_date);
+                    $insert_stmt->bind_param('iiissssdsssss', 
+                        $file_record_id, $current_modifier_id, $null_updated_by, 
+                        $full_ref_no, $row_date, $fac_type, $facility_as, $amount, 
+                        $comm_no, $comm_date, $board_no, $board_date, $power_delegation
+                    );
                     $insert_stmt->execute();
-                    $submitted_facility_ids[] = $insert_stmt->insert_id;
+                    $new_facility_id = $insert_stmt->insert_id;
+                    $submitted_facility_ids[] = $new_facility_id;
+                    
+                    // Insert security for new facility
+                    if (!empty($sec_type) && $sec_value !== null) {
+                        $sec_insert_stmt->bind_param("isds", $new_facility_id, $sec_type, $sec_value, $sec_description);
+                        $sec_insert_stmt->execute();
+                    }
                 }
             }
 
             $update_stmt->close();
             $insert_stmt->close();
+            $sec_update_stmt->close();
+            $sec_insert_stmt->close();
         }
 
         if (!empty($submitted_facility_ids)) {
@@ -210,8 +283,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Fetch all facilities for this file_record_id
-$fac_stmt = $conn->prepare('SELECT * FROM file_facilities WHERE file_record_id = ? ORDER BY sanction_date DESC, sanction_letter_ref_no DESC, id ASC');
+// Fetch all facilities for this file_record_id with security
+$fac_stmt = $conn->prepare('SELECT ff.*, 
+                            fs.security_type, fs.security_value, fs.security_description
+                            FROM file_facilities ff
+                            LEFT JOIN facility_securities fs ON ff.id = fs.facility_id
+                            WHERE ff.file_record_id = ? 
+                            ORDER BY ff.sanction_date DESC, ff.sanction_letter_ref_no DESC, ff.id ASC');
 $fac_stmt->bind_param('i', $file_record_id);
 $fac_stmt->execute();
 $facilities_res = $fac_stmt->get_result();
@@ -257,17 +335,20 @@ ob_end_flush();
         .batch-card { border: 0; border-radius: 14px; box-shadow: 0 4px 18px rgba(0,0,0,0.05); overflow: hidden; }
         .batch-header { background: #fff; border-bottom: 1px solid #eef2f7; }
         .table-responsive-custom { width: 100%; overflow-x: auto; }
-        .table-responsive-custom table { min-width: 1180px; }
+        .table-responsive-custom table { min-width: 1400px; }
         .attachment-box { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 10px; padding: 12px; }
         .btn-xs { padding: 0.25rem 0.4rem; font-size: 0.75rem; border-radius: 0.2rem; }
         .facility-group { margin-bottom: 20px; }
+        .security-box { background: #fff3e0; border-left: 3px solid #ff9800; padding: 8px 12px; border-radius: 4px; margin-top: 5px; }
+        .security-label { font-size: 0.7rem; color: #e65100; font-weight: 600; text-transform: uppercase; }
+        .ref-prefix-text { background: #e7f1ff; border-color: #b8daff; color: #094b96; font-weight: 700; font-size: 0.65rem; }
     </style>
 </head>
 <body class="p-4">
-<div class="container-fluid" style="max-width: 1500px;">
+<div class="container-fluid" style="max-width: 1600px;">
     <?php echo $status_message; ?>
 
-    <form method="post" action="edit_facility.php?id=<?php echo $facility_id; ?>">
+    <form method="post" action="edit_facility.php?id=<?php echo $facility_id; ?>" enctype="multipart/form-data">
         <div class="d-flex justify-content-between align-items-center mb-4 bg-white p-3 rounded shadow-sm">
             <div>
                 <h4 class="mb-0 text-primary"><i class="fas fa-edit"></i> Edit Facilities</h4>
@@ -288,6 +369,12 @@ ob_end_flush();
                 $group_date = $group['sanction_date'] ?? '';
                 $group_date_label = !empty($group_date) ? date('d-m-Y', strtotime($group_date)) : 'N/A';
                 $attachment_tbody_id = 'attachments-tbody-' . $groupIndex;
+
+                // Get suffix from full reference
+                $ref_suffix_display = $group_ref;
+                if (strpos($group_ref, $sanction_ref_prefix) === 0) {
+                    $ref_suffix_display = substr($group_ref, strlen($sanction_ref_prefix));
+                }
 
                 $uploaded_docs = [];
                 if (!empty($group_date)) {
@@ -327,14 +414,20 @@ ob_end_flush();
                             <div class="small text-muted font-monospace d-flex flex-wrap align-items-center gap-2 mt-2">
                                 <span class="d-inline-flex align-items-center gap-2">
                                     Ref No:
-                                    <span class="input-group input-group-sm" style="width:auto; min-width: 300px;">
-                                        <span class="input-group-text"><?php echo $sanction_ref_prefix; ?></span>
-                                        <input type="text" class="form-control form-control-sm batch-ref-suffix" value="<?php echo htmlspecialchars(preg_replace('/^' . preg_quote($sanction_ref_prefix, '/') . '/', '', $group_ref)); ?>" data-group-index="<?php echo $groupIndex; ?>">
+                                    <span class="input-group input-group-sm" style="width:auto; min-width: 320px;">
+                                        <span class="input-group-text ref-prefix-text"><?php echo $sanction_ref_prefix; ?></span>
+                                        <input type="text" class="form-control form-control-sm batch-ref-suffix" 
+                                               value="<?php echo htmlspecialchars($ref_suffix_display); ?>" 
+                                               data-group-index="<?php echo $groupIndex; ?>"
+                                               placeholder="Enter suffix">
                                     </span>
                                 </span>
                                 <span class="d-inline-flex align-items-center gap-2">
                                     Date:
-                                    <input type="date" class="form-control form-control-sm batch-sanction-date" value="<?php echo htmlspecialchars($group['sanction_date'] ?? ''); ?>" data-group-index="<?php echo $groupIndex; ?>" style="width: auto;">
+                                    <input type="date" class="form-control form-control-sm batch-sanction-date" 
+                                           value="<?php echo htmlspecialchars($group['sanction_date'] ?? ''); ?>" 
+                                           data-group-index="<?php echo $groupIndex; ?>" 
+                                           style="width: auto;">
                                     <span class="badge bg-light text-dark border batch-date-display"><?php echo htmlspecialchars($group_date_label); ?></span>
                                 </span>
                                 <span class="ms-2">Facilities: <strong class="batch-facility-count"><?php echo count($group['rows']); ?></strong></span>
@@ -347,15 +440,17 @@ ob_end_flush();
                     <div class="card-body p-0">
                         <div class="table-responsive-custom">
                             <table class="table table-hover align-middle mb-0">
-                                <thead class="table-dark text-uppercase small" style="font-size:0.75rem;">
+                                <thead class="table-dark text-uppercase small" style="font-size:0.7rem;">
                                     <tr>
-                                        <th class="ps-4" style="width: 26%;">Facility Type</th>
-                                        <th style="width: 14%;">Facility As</th>
-                                        <th style="width: 12%;">Amount</th>
-                                        <th style="width: 18%;">Committee Meeting</th>
-                                        <th style="width: 18%;">Board Meeting</th>
-                                        <th style="width: 14%;">Reference String</th>
-                                        <th class="text-center" style="width: 12%;">Action</th>
+                                        <th class="ps-4" style="width: 14%;">Facility Type</th>
+                                        <th style="width: 10%;">Facility As</th>
+                                        <th style="width: 8%;">Amount</th>
+                                        <th style="width: 12%;">Committee Meeting</th>
+                                        <th style="width: 12%;">Board Meeting</th>
+                                        <th style="width: 8%;">Power Delegation</th>
+                                        <th style="width: 14%;">Security Details</th>
+                                        <th style="width: 12%;">Ref No</th>
+                                        <th class="text-center" style="width: 8%;">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody id="group-rows-<?php echo $groupIndex; ?>">
@@ -370,23 +465,23 @@ ob_end_flush();
                                         $board_enabled = (!empty($f['board_meet_no']) || !empty($f['board_meet_date']));
                                         $is_known_facility = in_array($f['facility_type'], $facility_option_names, true);
                                         $selected_facility_as = trim((string)($f['facility_as'] ?? ''));
+                                        $selected_power_delegation = trim((string)($f['power_delegation'] ?? ''));
                                         ?>
                                         <tr>
-                                            <td class="ps-4 py-3">
+                                            <td class="ps-4 py-2">
                                                 <input type="hidden" name="row_keys[]" value="<?php echo $groupIndex . '_' . $rowIndex; ?>">
                                                 <input type="hidden" name="facility_ids[]" value="<?php echo htmlspecialchars($f['id'] ?? ''); ?>">
-                                                <input type="hidden" name="f_ref_suffixes[]" value="<?php echo htmlspecialchars($ref_suffix); ?>">
                                                 <input type="hidden" name="f_dates[]" value="<?php echo htmlspecialchars($group_date); ?>">
 
                                                 <select name="f_types[]" class="form-select form-select-sm facility-type-select" required>
                                                     <?php echo renderFacilityOptions($facility_options, (string)($f['facility_type'] ?? '')); ?>
                                                     <option value="Others" <?php echo !$is_known_facility ? 'selected' : ''; ?>>Others</option>
                                                 </select>
-                                                <input type="text" name="f_types_other[]" class="form-control form-control-sm mt-2 facility-type-other" value="<?php echo !$is_known_facility ? htmlspecialchars($f['facility_type']) : ''; ?>" style="display:<?php echo !$is_known_facility ? 'block' : 'none'; ?>;">
+                                                <input type="text" name="f_types_other[]" class="form-control form-control-sm mt-1 facility-type-other" value="<?php echo !$is_known_facility ? htmlspecialchars($f['facility_type']) : ''; ?>" style="display:<?php echo !$is_known_facility ? 'block' : 'none'; ?>;">
                                             </td>
                                             <td>
                                                 <select name="f_as[]" class="form-select form-select-sm" required>
-                                                    <option value="">-- Select Facility As --</option>
+                                                    <option value="">-- Select --</option>
                                                     <?php foreach ($facility_as_options as $facility_as_option): ?>
                                                         <option value="<?php echo htmlspecialchars($facility_as_option, ENT_QUOTES, 'UTF-8'); ?>" <?php echo ($selected_facility_as === $facility_as_option) ? 'selected' : ''; ?>><?php echo htmlspecialchars($facility_as_option); ?></option>
                                                     <?php endforeach; ?>
@@ -396,7 +491,7 @@ ob_end_flush();
                                                 <input type="number" step="0.01" name="f_amts[]" value="<?php echo htmlspecialchars($f['amount'] ?? 0); ?>" class="form-control form-control-sm fw-bold" required>
                                             </td>
                                             <td>
-                                                <button type="button" class="btn btn-sm btn-light mb-2 meet-toggle" data-target="comm-<?php echo $groupIndex . '_' . $rowIndex; ?>">
+                                                <button type="button" class="btn btn-sm btn-light mb-1 meet-toggle" data-target="comm-<?php echo $groupIndex . '_' . $rowIndex; ?>">
                                                     <i class="fas <?php echo $comm_enabled ? 'fa-minus text-danger' : 'fa-plus text-success'; ?>"></i>
                                                 </button>
                                                 <div id="comm-<?php echo $groupIndex . '_' . $rowIndex; ?>" style="display:<?php echo $comm_enabled ? 'block' : 'none'; ?>;">
@@ -405,7 +500,7 @@ ob_end_flush();
                                                 </div>
                                             </td>
                                             <td>
-                                                <button type="button" class="btn btn-sm btn-light mb-2 meet-toggle" data-target="board-<?php echo $groupIndex . '_' . $rowIndex; ?>">
+                                                <button type="button" class="btn btn-sm btn-light mb-1 meet-toggle" data-target="board-<?php echo $groupIndex . '_' . $rowIndex; ?>">
                                                     <i class="fas <?php echo $board_enabled ? 'fa-minus text-danger' : 'fa-plus text-success'; ?>"></i>
                                                 </button>
                                                 <div id="board-<?php echo $groupIndex . '_' . $rowIndex; ?>" style="display:<?php echo $board_enabled ? 'block' : 'none'; ?>;">
@@ -414,9 +509,51 @@ ob_end_flush();
                                                 </div>
                                             </td>
                                             <td>
-                                                <span class="badge bg-dark font-monospace text-warning px-2 py-1 shadow-sm" style="font-size:0.8rem;">
-                                                    <i class="fas fa-hashtag me-1"></i><?php echo htmlspecialchars($group_ref ?: $existing_ref); ?>
-                                                </span>
+                                                <select name="f_power_delegation[]" class="form-select form-select-sm">
+                                                    <option value="">-- Select --</option>
+                                                    <?php foreach ($power_delegation_options as $option): ?>
+                                                        <option value="<?php echo htmlspecialchars($option); ?>" <?php echo ($selected_power_delegation === $option) ? 'selected' : ''; ?>>
+                                                            <?php echo htmlspecialchars($option); ?>
+                                                        </option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                            </td>
+                                            <td>
+                                                <div class="security-box">
+                                                    <div class="security-label">Security Details</div>
+                                                    <div class="row g-1">
+                                                        <div class="col-12">
+                                                            <select name="sec_type[]" class="form-select form-select-sm">
+                                                                <option value="">-- Type --</option>
+                                                                <option value="Cash" <?php echo ($f['security_type'] == 'Cash') ? 'selected' : ''; ?>>Cash</option>
+                                                                <option value="Bank Guarantee" <?php echo ($f['security_type'] == 'Bank Guarantee') ? 'selected' : ''; ?>>Bank Guarantee</option>
+                                                                <option value="FDR" <?php echo ($f['security_type'] == 'FDR') ? 'selected' : ''; ?>>FDR</option>
+                                                                <option value="Hypothecation" <?php echo ($f['security_type'] == 'Hypothecation') ? 'selected' : ''; ?>>Hypothecation</option>
+                                                                <option value="Pledge" <?php echo ($f['security_type'] == 'Pledge') ? 'selected' : ''; ?>>Pledge</option>
+                                                                <option value="Mortgage" <?php echo ($f['security_type'] == 'Mortgage') ? 'selected' : ''; ?>>Mortgage</option>
+                                                                <option value="Personal Guarantee" <?php echo ($f['security_type'] == 'Personal Guarantee') ? 'selected' : ''; ?>>Personal Guarantee</option>
+                                                                <option value="Corporate Guarantee" <?php echo ($f['security_type'] == 'Corporate Guarantee') ? 'selected' : ''; ?>>Corporate Guarantee</option>
+                                                            </select>
+                                                        </div>
+                                                        <div class="col-12">
+                                                            <input type="number" step="0.01" name="sec_value[]" value="<?php echo htmlspecialchars($f['security_value'] ?? ''); ?>" class="form-control form-control-sm" placeholder="Value">
+                                                        </div>
+                                                        <div class="col-12">
+                                                            <input type="text" name="sec_description[]" value="<?php echo htmlspecialchars($f['security_description'] ?? ''); ?>" class="form-control form-control-sm" placeholder="Description">
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div class="input-group input-group-sm">
+                                                    <span class="input-group-text ref-prefix-text"><?php echo $sanction_ref_prefix; ?></span>
+                                                    <input type="text" name="f_ref_suffixes[]" 
+                                                           value="<?php echo htmlspecialchars($ref_suffix); ?>" 
+                                                           class="form-control form-control-sm" 
+                                                           placeholder="Enter suffix"
+                                                           style="min-width: 80px;">
+                                                </div>
+                                                <small class="text-muted" style="font-size:0.6rem;">Full: <?php echo htmlspecialchars($existing_ref ?: $sanction_ref_prefix . '[suffix]'); ?></small>
                                             </td>
                                             <td class="text-center">
                                                 <button type="button" class="btn btn-sm btn-outline-danger remove-row"><i class="fas fa-trash-alt"></i></button>
@@ -430,15 +567,15 @@ ob_end_flush();
                         <div class="attachment-box m-3 mt-4">
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <div class="text-dark fw-bold small"><i class="fas fa-paperclip text-warning me-1"></i> Linked Files for <?php echo htmlspecialchars($group_date_label); ?></div>
-                                <span class="small text-muted">Attachments shown once for this batch</span>
+                                <span class="small text-muted">Upload new files to add or replace</span>
                             </div>
                             <div class="table-responsive">
                                 <table class="table table-sm table-bordered m-0 bg-white align-middle" style="font-size:0.85rem;">
                                     <thead class="table-light text-muted">
                                         <tr>
-                                            <th style="width:30%;">Document Label Name</th>
-                                            <th style="width:40%;">Current File</th>
-                                            <th style="width:30%;">Actions</th>
+                                            <th style="width:25%;">Document Label Name</th>
+                                            <th style="width:35%;">Current File</th>
+                                            <th style="width:40%;">Upload New / Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody id="<?php echo $attachment_tbody_id; ?>">
@@ -462,8 +599,8 @@ ob_end_flush();
                                                     <?php endif; ?>
                                                 </td>
                                                 <td>
-                                                    <div class="d-flex align-items-center gap-1">
-                                                        <input type="file" name="<?php echo htmlspecialchars($input_field); ?>_<?php echo $groupIndex; ?>" class="form-control form-control-sm" style="font-size:11px;">
+                                                    <div class="d-flex align-items-center gap-1 flex-wrap">
+                                                        <input type="file" name="<?php echo htmlspecialchars($input_field); ?>_<?php echo $groupIndex; ?>" class="form-control form-control-sm" style="font-size:11px; width: 200px;">
                                                         <?php if ($doc): ?>
                                                             <a href="<?php echo htmlspecialchars($doc['file_path']); ?>" target="_blank" class="btn btn-xs btn-outline-secondary px-2"><i class="fas fa-eye"></i></a>
                                                             <a href="edit_facility.php?id=<?php echo $facility_id; ?>&action=delete_attachment&attach_id=<?php echo intval($doc['id']); ?>" class="btn btn-xs btn-outline-danger px-2" onclick="return confirm('Delete this attachment permanently?');"><i class="fas fa-trash"></i></a>
@@ -525,20 +662,19 @@ document.addEventListener('click', function(e) {
         const refSuffix = suffixField ? suffixField.value.trim() : '';
         const facilityRow = document.createElement('tr');
         facilityRow.innerHTML = `
-            <td class="ps-4 py-3">
+            <td class="ps-4 py-2">
                 <input type="hidden" name="row_keys[]" value="new_${groupIndex}_${rowCount}">
                 <input type="hidden" name="facility_ids[]" value="">
-                <input type="hidden" name="f_ref_suffixes[]" value="${refSuffix.replace(/"/g, '&quot;')}">
                 <input type="hidden" name="f_dates[]" value="${groupDate.replace(/"/g, '&quot;')}">
                 <select name="f_types[]" class="form-select form-select-sm facility-type-select" required>
                     ${<?php echo json_encode($facility_options_html); ?>}
                     <option value="Others">Others</option>
                 </select>
-                <input type="text" name="f_types_other[]" class="form-control form-control-sm mt-2 facility-type-other" style="display:none;">
+                <input type="text" name="f_types_other[]" class="form-control form-control-sm mt-1 facility-type-other" style="display:none;">
             </td>
             <td>
                 <select name="f_as[]" class="form-select form-select-sm" required>
-                    <option value="">-- Select Facility As --</option>
+                    <option value="">-- Select --</option>
                     <?php foreach ($facility_as_options as $facility_as_option): ?>
                         <option value="<?php echo htmlspecialchars($facility_as_option, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($facility_as_option); ?></option>
                     <?php endforeach; ?>
@@ -546,20 +682,64 @@ document.addEventListener('click', function(e) {
             </td>
             <td><input type="number" step="0.01" name="f_amts[]" class="form-control form-control-sm fw-bold" required></td>
             <td>
-                <button type="button" class="btn btn-sm btn-light mb-2 meet-toggle" data-target="comm-new_${groupIndex}_${rowCount}"><i class="fas fa-plus text-success"></i></button>
+                <button type="button" class="btn btn-sm btn-light mb-1 meet-toggle" data-target="comm-new_${groupIndex}_${rowCount}"><i class="fas fa-plus text-success"></i></button>
                 <div id="comm-new_${groupIndex}_${rowCount}" style="display:none;">
                     <input type="text" name="c_nos[]" class="form-control form-control-sm mb-1" placeholder="Meet No">
                     <input type="date" name="c_dates[]" class="form-control form-control-sm">
                 </div>
             </td>
             <td>
-                <button type="button" class="btn btn-sm btn-light mb-2 meet-toggle" data-target="board-new_${groupIndex}_${rowCount}"><i class="fas fa-plus text-success"></i></button>
+                <button type="button" class="btn btn-sm btn-light mb-1 meet-toggle" data-target="board-new_${groupIndex}_${rowCount}"><i class="fas fa-plus text-success"></i></button>
                 <div id="board-new_${groupIndex}_${rowCount}" style="display:none;">
                     <input type="text" name="b_nos[]" class="form-control form-control-sm mb-1" placeholder="Meet No">
                     <input type="date" name="b_dates[]" class="form-control form-control-sm">
                 </div>
             </td>
-            <td><span class="badge bg-dark font-monospace text-warning px-2 py-1 shadow-sm" style="font-size:0.8rem;"><i class="fas fa-hashtag me-1"></i>${groupRef || 'N/A'}</span></td>
+            <td>
+                <select name="f_power_delegation[]" class="form-select form-select-sm">
+                    <option value="">-- Select --</option>
+                    <?php foreach ($power_delegation_options as $option): ?>
+                        <option value="<?php echo htmlspecialchars($option); ?>"><?php echo htmlspecialchars($option); ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </td>
+            <td>
+                <div class="security-box">
+                    <div class="security-label">Security Details</div>
+                    <div class="row g-1">
+                        <div class="col-12">
+                            <select name="sec_type[]" class="form-select form-select-sm">
+                                <option value="">-- Type --</option>
+                                <option value="Cash">Cash</option>
+                                <option value="Bank Guarantee">Bank Guarantee</option>
+                                <option value="FDR">FDR</option>
+                                <option value="Hypothecation">Hypothecation</option>
+                                <option value="Pledge">Pledge</option>
+                                <option value="Mortgage">Mortgage</option>
+                                <option value="Personal Guarantee">Personal Guarantee</option>
+                                <option value="Corporate Guarantee">Corporate Guarantee</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <input type="number" step="0.01" name="sec_value[]" class="form-control form-control-sm" placeholder="Value">
+                        </div>
+                        <div class="col-12">
+                            <input type="text" name="sec_description[]" class="form-control form-control-sm" placeholder="Description">
+                        </div>
+                    </div>
+                </div>
+            </td>
+            <td>
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text ref-prefix-text"><?php echo $sanction_ref_prefix; ?></span>
+                    <input type="text" name="f_ref_suffixes[]" 
+                           value="${refSuffix.replace(/"/g, '&quot;')}" 
+                           class="form-control form-control-sm" 
+                           placeholder="Enter suffix"
+                           style="min-width: 80px;">
+                </div>
+                <small class="text-muted" style="font-size:0.6rem;">Full: <?php echo $sanction_ref_prefix; ?>[suffix]</small>
+            </td>
             <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger remove-row"><i class="fas fa-trash-alt"></i></button></td>
         `;
         tbody.appendChild(facilityRow);

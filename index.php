@@ -534,6 +534,14 @@ if ($unified_workforce_res && $unified_workforce_res->num_rows > 0) {
                 <i class="fas fa-database"></i>
                 <span>cabinet_files</span>
             </a>
+            <a href="facility_reports.php" class="admin-toolbar-btn admin-btn-info">
+                <i class="fas fa-chart-bar"></i>
+                <span>Facility Reports</span>
+            </a>
+            <a href="security_reports.php" class="admin-toolbar-btn admin-btn-warning">
+                <i class="fas fa-shield-alt"></i>
+                <span>Security Reports</span>
+            </a>
         </div>
     </div>
 </div>
@@ -589,6 +597,98 @@ if ($unified_workforce_res && $unified_workforce_res->num_rows > 0) {
                     <div class="text-secondary small text-uppercase fw-semibold mb-1">Declined / Rejected</div>
                     <h3 class="fw-bold mb-0 text-dark"><?php echo number_format($counts['declined']); ?></h3>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- Add this to your index.php after the existing stats cards -->
+<div class="row g-3 mb-4">
+    <?php
+    // Facility stats
+    $facility_stats = [];
+    $facility_stats['total'] = $conn->query("SELECT COUNT(*) as total FROM file_facilities")->fetch_assoc()['total'];
+    $facility_stats['funded'] = $conn->query("SELECT COUNT(*) as total FROM file_facilities WHERE facility_group = 'Funded'")->fetch_assoc()['total'];
+    $facility_stats['non_funded'] = $conn->query("SELECT COUNT(*) as total FROM file_facilities WHERE facility_group = 'Non-Funded' OR facility_group IS NULL")->fetch_assoc()['total'];
+    $facility_stats['total_security'] = $conn->query("SELECT COUNT(*) as total FROM facility_securities")->fetch_assoc()['total'];
+    $facility_stats['total_amount'] = $conn->query("SELECT SUM(amount) as total FROM file_facilities")->fetch_assoc()['total'] ?? 0;
+    ?>
+    <div class="col-md-3">
+        <div class="card metric-card metric-primary shadow-sm p-3 h-100">
+            <div class="d-flex align-items-center">
+                <div class="icon-shape icon-shape-primary me-3" style="width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: #e3f2fd;">
+                    <i class="fas fa-handshake fa-lg text-primary"></i>
+                </div>
+                <div>
+                    <div class="text-secondary small text-uppercase fw-semibold mb-1">Total Facilities</div>
+                    <h3 class="fw-bold mb-0 text-dark"><?php echo number_format($facility_stats['total']); ?></h3>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card metric-card metric-success shadow-sm p-3 h-100">
+            <div class="d-flex align-items-center">
+                <div class="icon-shape icon-shape-success me-3" style="width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: #e8f5e9;">
+                    <i class="fas fa-shield-alt fa-lg text-success"></i>
+                </div>
+                <div>
+                    <div class="text-secondary small text-uppercase fw-semibold mb-1">Total Security</div>
+                    <h3 class="fw-bold mb-0 text-dark"><?php echo number_format($facility_stats['total_security']); ?></h3>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card metric-card metric-warning shadow-sm p-3 h-100">
+            <div class="d-flex align-items-center">
+                <div class="icon-shape icon-shape-warning me-3" style="width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: #fff3e0;">
+                    <i class="fas fa-money-bill-wave fa-lg text-warning"></i>
+                </div>
+                <div>
+                    <div class="text-secondary small text-uppercase fw-semibold mb-1">Total Amount</div>
+                    <h3 class="fw-bold mb-0 text-dark">BDT <?php echo number_format($facility_stats['total_amount'], 0); ?></h3>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card metric-card metric-info shadow-sm p-3 h-100">
+            <div class="d-flex align-items-center">
+                <div class="icon-shape icon-shape-info me-3" style="width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: #e3f2fd;">
+                    <i class="fas fa-chart-pie fa-lg text-info"></i>
+                </div>
+                <div>
+                    <div class="text-secondary small text-uppercase fw-semibold mb-1">Funded / Non-Funded</div>
+                    <h3 class="fw-bold mb-0 text-dark"><?php echo number_format($facility_stats['funded']); ?> / <?php echo number_format($facility_stats['non_funded']); ?></h3>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Links to Reports -->
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="card shadow-sm border-0">
+            <div class="card-body d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="mb-0"><i class="fas fa-chart-bar text-primary"></i> Facility Reports</h6>
+                    <small class="text-muted">View detailed facility reports and statistics</small>
+                </div>
+                <a href="facility_reports.php" class="btn btn-sm btn-primary">View Reports <i class="fas fa-arrow-right ms-1"></i></a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card shadow-sm border-0">
+            <div class="card-body d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="mb-0"><i class="fas fa-shield-alt text-warning"></i> Security Reports</h6>
+                    <small class="text-muted">View comprehensive security details</small>
+                </div>
+                <a href="security_reports.php" class="btn btn-sm btn-warning">View Reports <i class="fas fa-arrow-right ms-1"></i></a>
             </div>
         </div>
     </div>

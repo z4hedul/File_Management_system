@@ -1,21 +1,12 @@
 <?php
-// test_add_facility.php - Test the add facility API
+// test_security_api.php - Test the get_security API
 
-echo "<h2>Testing Add Facility API</h2>";
+echo "<h2>Testing Get Security API</h2>";
 
 // Test data - replace with actual client_id from your database
 $test_data = [
     'client_id' => 1,  // Change this to an actual client ID
-    'facility_type' => 'IDBP',
-    'facility_group' => 'Funded',
-    'amount' => 100000,
-    'security_type' => 'Cash',
-    'security_value' => 50000,
-    'security_description' => 'Test Security',
-    'sanction_date' => date('Y-m-d'),
-    'sanction_letter_ref_no' => 'TEST/REF/001',
-    'facility_as' => 'Fresh',
-    'power_delegation' => 'MD'
+    'facility_type' => 'IDBP'  // Change this to an actual facility type
 ];
 
 echo "<pre>";
@@ -24,7 +15,7 @@ print_r($test_data);
 echo "</pre>";
 
 $ch = curl_init();
-curl_setopt($ch, CURLOPT_URL, 'http://localhost/file_management_system/api/add_facility.php');
+curl_setopt($ch, CURLOPT_URL, 'http://localhost/file_management_system/api/get_security.php');
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 curl_setopt($ch, CURLOPT_POST, true);
 curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($test_data));
@@ -54,11 +45,12 @@ if ($json_response) {
     echo "</pre>";
     
     if (isset($json_response['success']) && $json_response['success']) {
-        echo "<p style='color:green'>✅ Success! Facility added.</p>";
+        echo "<p style='color:green'>✅ Success! Found " . count($json_response['data'] ?? []) . " security records.</p>";
     } else {
         echo "<p style='color:red'>❌ Error: " . ($json_response['error'] ?? 'Unknown error') . "</p>";
     }
 } else {
     echo "<p style='color:red'>❌ Invalid JSON response</p>";
+    echo "<p>Raw response: " . htmlspecialchars($response) . "</p>";
 }
 ?>

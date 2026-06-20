@@ -86,69 +86,67 @@ if ($client_id <= 0) {
     </head>
     <body>
         <div class="container-fluid px-4 py-4">
-            <!-- Add this section to your index.php after the admin toolbar -->
-<div class="row g-3 mb-4">
-    <?php
-    // Get dashboard stats
-    $stats = [];
-    $stats['total_files'] = $conn->query("SELECT COUNT(*) as total FROM office_files WHERE is_deleted = 0")->fetch_assoc()['total'];
-    $stats['total_clients'] = $conn->query("SELECT COUNT(*) as total FROM client_profiles")->fetch_assoc()['total'];
-    $stats['total_facilities'] = $conn->query("SELECT COUNT(*) as total FROM file_facilities")->fetch_assoc()['total'];
-    $stats['total_assignments'] = $conn->query("SELECT COUNT(DISTINCT proposal_ref) as total FROM proposal_assignments")->fetch_assoc()['total'];
-    ?>
-    <div class="col-md-3">
-        <div class="card metric-card metric-primary shadow-sm p-3 h-100">
-            <div class="d-flex align-items-center">
-                <div class="icon-shape icon-shape-primary me-3" style="width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: #e3f2fd;">
-                    <i class="fas fa-folder-open fa-lg text-primary"></i>
+            <div class="row g-3 mb-4">
+                <?php
+                $stats = [];
+                $stats['total_files'] = $conn->query("SELECT COUNT(*) as total FROM office_files WHERE is_deleted = 0")->fetch_assoc()['total'];
+                $stats['total_clients'] = $conn->query("SELECT COUNT(*) as total FROM client_profiles")->fetch_assoc()['total'];
+                $stats['total_facilities'] = $conn->query("SELECT COUNT(*) as total FROM file_facilities")->fetch_assoc()['total'];
+                $stats['total_assignments'] = $conn->query("SELECT COUNT(DISTINCT proposal_ref) as total FROM proposal_assignments")->fetch_assoc()['total'];
+                ?>
+                <div class="col-md-3">
+                    <div class="card metric-card metric-primary shadow-sm p-3 h-100">
+                        <div class="d-flex align-items-center">
+                            <div class="icon-shape icon-shape-primary me-3" style="width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: #e3f2fd;">
+                                <i class="fas fa-folder-open fa-lg text-primary"></i>
+                            </div>
+                            <div>
+                                <div class="text-secondary small text-uppercase fw-semibold mb-1">Total Files</div>
+                                <h3 class="fw-bold mb-0 text-dark"><?php echo number_format($stats['total_files']); ?></h3>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div>
-                    <div class="text-secondary small text-uppercase fw-semibold mb-1">Total Files</div>
-                    <h3 class="fw-bold mb-0 text-dark"><?php echo number_format($stats['total_files']); ?></h3>
+                <div class="col-md-3">
+                    <div class="card metric-card metric-success shadow-sm p-3 h-100">
+                        <div class="d-flex align-items-center">
+                            <div class="icon-shape icon-shape-success me-3" style="width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: #e8f5e9;">
+                                <i class="fas fa-users fa-lg text-success"></i>
+                            </div>
+                            <div>
+                                <div class="text-secondary small text-uppercase fw-semibold mb-1">Total Clients</div>
+                                <h3 class="fw-bold mb-0 text-dark"><?php echo number_format($stats['total_clients']); ?></h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card metric-card metric-warning shadow-sm p-3 h-100">
+                        <div class="d-flex align-items-center">
+                            <div class="icon-shape icon-shape-warning me-3" style="width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: #fff3e0;">
+                                <i class="fas fa-handshake fa-lg text-warning"></i>
+                            </div>
+                            <div>
+                                <div class="text-secondary small text-uppercase fw-semibold mb-1">Total Facilities</div>
+                                <h3 class="fw-bold mb-0 text-dark"><?php echo number_format($stats['total_facilities']); ?></h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card metric-card metric-info shadow-sm p-3 h-100">
+                        <div class="d-flex align-items-center">
+                            <div class="icon-shape icon-shape-info me-3" style="width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: #e3f2fd;">
+                                <i class="fas fa-tasks fa-lg text-info"></i>
+                            </div>
+                            <div>
+                                <div class="text-secondary small text-uppercase fw-semibold mb-1">Assignments</div>
+                                <h3 class="fw-bold mb-0 text-dark"><?php echo number_format($stats['total_assignments']); ?></h3>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card metric-card metric-success shadow-sm p-3 h-100">
-            <div class="d-flex align-items-center">
-                <div class="icon-shape icon-shape-success me-3" style="width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: #e8f5e9;">
-                    <i class="fas fa-users fa-lg text-success"></i>
-                </div>
-                <div>
-                    <div class="text-secondary small text-uppercase fw-semibold mb-1">Total Clients</div>
-                    <h3 class="fw-bold mb-0 text-dark"><?php echo number_format($stats['total_clients']); ?></h3>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card metric-card metric-warning shadow-sm p-3 h-100">
-            <div class="d-flex align-items-center">
-                <div class="icon-shape icon-shape-warning me-3" style="width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: #fff3e0;">
-                    <i class="fas fa-handshake fa-lg text-warning"></i>
-                </div>
-                <div>
-                    <div class="text-secondary small text-uppercase fw-semibold mb-1">Total Facilities</div>
-                    <h3 class="fw-bold mb-0 text-dark"><?php echo number_format($stats['total_facilities']); ?></h3>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card metric-card metric-info shadow-sm p-3 h-100">
-            <div class="d-flex align-items-center">
-                <div class="icon-shape icon-shape-info me-3" style="width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: #e3f2fd;">
-                    <i class="fas fa-tasks fa-lg text-info"></i>
-                </div>
-                <div>
-                    <div class="text-secondary small text-uppercase fw-semibold mb-1">Assignments</div>
-                    <h3 class="fw-bold mb-0 text-dark"><?php echo number_format($stats['total_assignments']); ?></h3>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
             <div class="page-header">
                 <div>
                     <h4><i class="fas fa-users"></i> Client Management</h4>
@@ -276,8 +274,7 @@ if (!$client) {
     exit();
 }
 
-
-// ===== FETCH OFFICE FILES - Only show files linked to this client =====
+// ===== FETCH OFFICE FILES =====
 $files_query = "SELECT 
                     `of`.id,
                     `of`.file_no,
@@ -302,6 +299,7 @@ $office_files = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
 // ===== FETCH FACILITIES =====
 $facilities_query = "SELECT 
+                        ff.id,
                         ff.*,
                         ft.facility_name,
                         ft.facility_group,
@@ -512,9 +510,6 @@ $page_title = "Client Profile - " . htmlspecialchars($client['client_name']);
 <div class="loading-spinner" id="loadingSpinner"><div class="spinner"></div></div>
 <div class="toast-container-custom" id="toastContainer"></div>
 
-
-
-
 <div class="container-fluid px-4 py-3">
 
     <nav aria-label="breadcrumb" class="breadcrumb-custom">
@@ -603,22 +598,22 @@ $page_title = "Client Profile - " . htmlspecialchars($client['client_name']);
                 </div>
             </div>
         </div>
-<div class="col-lg-8">
 
-<!-- Facilities Section -->
-<div class="card card-custom mb-4">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <span><i class="fas fa-handshake"></i> Facilities</span>
-        <button class="btn btn-sm btn-primary" onclick="openAddFacilityModal(<?php echo $client['id']; ?>)">
-            <i class="fas fa-plus"></i> Add Facility
-        </button>
-    </div>
+        <div class="col-lg-8">
+            <!-- Facilities Section -->
+            <div class="card card-custom mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-handshake"></i> Facilities</span>
+                    <button class="btn btn-sm btn-primary" onclick="openAddFacilityModal(<?php echo $client['id']; ?>)">
+                        <i class="fas fa-plus"></i> Add Facility
+                    </button>
+                </div>
                 <div class="card-body">
                     <?php if (empty($facilities)): ?>
                         <div class="text-center text-muted py-5">
                             <i class="fas fa-inbox" style="font-size: 48px;"></i>
                             <p class="mt-3">No facilities found</p>
-                            <button class="btn btn-sm btn-primary" onclick="addFacility(<?php echo $client['id']; ?>)">
+                            <button class="btn btn-sm btn-primary" onclick="openAddFacilityModal(<?php echo $client['id']; ?>)">
                                 <i class="fas fa-plus"></i> Add First Facility
                             </button>
                         </div>
@@ -651,11 +646,11 @@ $page_title = "Client Profile - " . htmlspecialchars($client['client_name']);
                                     </div>
                                     <div>
                                         <a href="more_details.php?id=<?php echo $facility['id']; ?>" class="btn btn-sm btn-outline-primary btn-sm-action">
-    <i class="fas fa-eye"></i>
-</a>
-<a href="edit_facility.php?id=<?php echo $facility['id']; ?>&client_id=<?php echo $client['id']; ?>" class="btn btn-sm btn-outline-success btn-sm-action">
-    <i class="fas fa-edit"></i>
-</a>
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        <a href="edit_facility.php?id=<?php echo $facility['id']; ?>&client_id=<?php echo $client['id']; ?>" class="btn btn-sm btn-outline-success btn-sm-action">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
                                     </div>
                                 </div>
                             </div>
@@ -664,584 +659,601 @@ $page_title = "Client Profile - " . htmlspecialchars($client['client_name']);
                 </div>
             </div>
 
-<!-- Cabinet/Office Files Section -->
-<div class="card card-custom">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <span><i class="fas fa-archive"></i> Cabinet & Files</span>
-        <div class="d-flex gap-2">
-            <!-- Add New File Button -->
-            <a href="add_record.php?client_id=<?php echo $client['id']; ?>" class="btn btn-success btn-sm">
-                <i class="fas fa-plus-circle"></i> Add New File
-            </a>
-            <!-- Assign Existing File Button -->
-            <button class="btn btn-warning btn-sm" onclick="openAssignFileModal(<?php echo $client['id']; ?>)">
-                <i class="fas fa-link"></i> Assign Existing File
+            <!-- Cabinet/Office Files Section -->
+            <div class="card card-custom">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-archive"></i> Cabinet & Files</span>
+                    <div class="d-flex gap-2">
+                        <a href="add_record.php?client_id=<?php echo $client['id']; ?>" class="btn btn-success btn-sm">
+                            <i class="fas fa-plus-circle"></i> Add New File
+                        </a>
+                        <button class="btn btn-warning btn-sm" onclick="openAssignFileModal(<?php echo $client['id']; ?>)">
+                            <i class="fas fa-link"></i> Assign Existing File
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <?php if (empty($office_files)): ?>
+                        <div class="text-center text-muted py-5">
+                            <i class="fas fa-folder-open" style="font-size: 48px;"></i>
+                            <p class="mt-3">No files found for this client</p>
+                            <div class="d-flex gap-2 justify-content-center">
+                                <a href="add_record.php?client_id=<?php echo $client['id']; ?>" class="btn btn-sm btn-success">
+                                    <i class="fas fa-plus"></i> Add New File
+                                </a>
+                                <button class="btn btn-sm btn-warning" onclick="openAssignFileModal(<?php echo $client['id']; ?>)">
+                                    <i class="fas fa-link"></i> Assign Existing File
+                                </button>
+                            </div>
+                        </div>
+                    <?php else: ?>
+                        <div class="table-responsive">
+                            <table class="table table-hover table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Client Name</th>
+                                        <th>Cabinet</th>
+                                        <th>Shelf</th>
+                                        <th>Branch</th>
+                                        <th>Division</th>
+                                        <th>Zone</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($office_files as $file): ?>
+                                        <tr>
+                                            <td><?php echo htmlspecialchars($file['client'] ?? 'N/A'); ?></td>
+                                            <td>
+                                                <i class="fas fa-archive text-warning"></i>
+                                                <?php echo htmlspecialchars($file['cabinet_name'] ?? 'N/A'); ?>
+                                            </td>
+                                            <td><?php echo htmlspecialchars($file['shelf_name'] ?? 'N/A'); ?></td>
+                                            <td>
+                                                <?php 
+                                                $branch_display = !empty($file['branch_name']) ? $file['branch_name'] : 'N/A';
+                                                echo htmlspecialchars($branch_display); 
+                                                ?>
+                                                <?php if (!empty($file['branch_code'])): ?>
+                                                    <small class="text-muted">(<?php echo htmlspecialchars($file['branch_code']); ?>)</small>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td>
+                                                <?php 
+                                                $division_display = !empty($file['division']) ? $file['division'] : 'N/A';
+                                                $div_badge_class = ($division_display === 'Investment') ? 'bg-success' : (($division_display === 'SME') ? 'bg-warning text-dark' : 'bg-info text-dark');
+                                                ?>
+                                                <span class="badge <?php echo $div_badge_class; ?>">
+                                                    <?php echo htmlspecialchars($division_display); ?>
+                                                </span>
+                                            </td>
+                                            <td><?php echo htmlspecialchars($file['zone'] ?? 'N/A'); ?></td>
+                                            <td>
+                                                <a href='transfer_file.php?id=<?php echo $file['id']; ?>' class='btn btn-sm btn-outline-primary' title='Transfer Division'><i class='fas fa-exchange-alt'></i></a>
+                                                <a href="view_details.php?id=<?php echo $file['id']; ?>" class="btn btn-sm btn-outline-info btn-sm-action" title="View Details">
+                                                    <i class="fas fa-eye"></i>
+                                                </a>
+                                                <a href="edit.php?id=<?php echo $file['id']; ?>" class="btn btn-sm btn-outline-primary btn-sm-action" title="Edit">
+                                                    <i class="fas fa-edit"></i>
+                                                </a>
+                                                <button class="btn btn-sm btn-outline-danger btn-sm-action" onclick="deleteFile(<?php echo $file['id']; ?>, <?php echo $client['id']; ?>)" title="Remove from Client (File will remain in master list)">
+                                                    <i class="fas fa-unlink"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <!-- Assign Existing File Modal -->
+            <div class="modal fade" id="assignFileModal" tabindex="-1">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title"><i class="fas fa-link text-warning"></i> Assign Existing File to Client</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle"></i> 
+                                Select an existing file from the dropdown below to assign it to this client.
+                                The file will be linked to <strong><?php echo htmlspecialchars($client['client_name']); ?></strong>
+                                <br><small class="text-muted">Note: The original file name will be preserved.</small>
+                            </div>
+                            
+                            <form id="assignFileForm">
+                                <input type="hidden" id="assign_client_id" value="<?php echo $client['id']; ?>">
+                                
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Select Existing File <span class="text-danger">*</span></label>
+                                    <select name="file_id" id="file_select" class="form-control" required onchange="loadFileDetails(this.value)">
+                                        <option value="">-- Select File --</option>
+                                        <?php
+                                        $unassigned_query = "SELECT 
+                                                                id, 
+                                                                file_no, 
+                                                                client, 
+                                                                cabinet_name, 
+                                                                shelf_name, 
+                                                                branch_name, 
+                                                                branch_code, 
+                                                                division, 
+                                                                zone 
+                                                              FROM office_files 
+                                                              WHERE (client_id IS NULL OR client_id = 0) AND is_deleted = 0
+                                                              ORDER BY client ASC, file_no ASC";
+                                        $unassigned_result = $conn->query($unassigned_query);
+                                        if ($unassigned_result && $unassigned_result->num_rows > 0):
+                                            while ($file = $unassigned_result->fetch_assoc()):
+                                        ?>
+                                        <option value="<?php echo $file['id']; ?>"
+                                                data-cabinet="<?php echo htmlspecialchars($file['cabinet_name'] ?? ''); ?>"
+                                                data-shelf="<?php echo htmlspecialchars($file['shelf_name'] ?? ''); ?>"
+                                                data-branch-name="<?php echo htmlspecialchars($file['branch_name'] ?? ''); ?>"
+                                                data-branch-code="<?php echo htmlspecialchars($file['branch_code'] ?? ''); ?>"
+                                                data-division="<?php echo htmlspecialchars($file['division'] ?? ''); ?>"
+                                                data-zone="<?php echo htmlspecialchars($file['zone'] ?? ''); ?>"
+                                                data-client="<?php echo htmlspecialchars($file['client'] ?? ''); ?>">
+                                            <?php 
+                                            $display_client = !empty($file['client']) ? $file['client'] : 'Unnamed';
+                                            echo htmlspecialchars($display_client); 
+                                            ?>
+                                        </option>
+                                        <?php endwhile; ?>
+                                        <?php else: ?>
+                                        <option value="">No unassigned files found</option>
+                                        <?php endif; ?>
+                                    </select>
+                                    <small class="text-muted">Files are listed alphabetically by original file name.</small>
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label fw-bold">Original File Name</label>
+                                            <input type="text" id="file_client_name" class="form-control" readonly style="background: #f8f9fa; font-weight: 600; color: #006a4e;">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label fw-bold">File No</label>
+                                            <input type="text" id="file_file_no" class="form-control" readonly style="background: #f8f9fa; font-weight: 600; color: #006a4e;">
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <div class="mb-3">
+                                            <label class="form-label fw-bold">Cabinet</label>
+                                            <input type="text" id="file_cabinet" class="form-control" readonly style="background: #f8f9fa;">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="mb-3">
+                                            <label class="form-label fw-bold">Shelf</label>
+                                            <input type="text" id="file_shelf" class="form-control" readonly style="background: #f8f9fa;">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="mb-3">
+                                            <label class="form-label fw-bold">Branch</label>
+                                            <input type="text" id="file_branch" class="form-control" readonly style="background: #f8f9fa;">
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label fw-bold">Division</label>
+                                            <input type="text" id="file_division" class="form-control" readonly style="background: #f8f9fa;">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label fw-bold">Zone</label>
+                                            <input type="text" id="file_zone" class="form-control" readonly style="background: #f8f9fa;">
+                                        </div>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                            <button type="button" class="btn btn-primary" onclick="assignFile()">
+                                <i class="fas fa-link"></i> Assign File to Client
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Edit Client Modal -->
+            <div class="modal fade" id="editClientModal" tabindex="-1">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title"><i class="fas fa-edit text-primary"></i> Edit Client</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="editClientForm">
+                                <input type="hidden" id="edit_client_id" value="<?php echo $client['id']; ?>">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Client Name <span class="text-danger">*</span></label>
+                                            <input type="text" class="form-control" id="edit_client_name" name="client_name" value="<?php echo htmlspecialchars($client['client_name']); ?>" required>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Client Code</label>
+                                            <input type="text" class="form-control" id="edit_client_code" name="client_code" value="<?php echo htmlspecialchars($client['client_code'] ?? ''); ?>">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Address</label>
+                                    <textarea class="form-control" id="edit_address" name="address" rows="2"><?php echo htmlspecialchars($client['address'] ?? ''); ?></textarea>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <div class="mb-3">
+                                            <label class="form-label">City</label>
+                                            <input type="text" class="form-control" id="edit_city" name="city" value="<?php echo htmlspecialchars($client['city'] ?? ''); ?>">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="mb-3">
+                                            <label class="form-label">State</label>
+                                            <input type="text" class="form-control" id="edit_state" name="state" value="<?php echo htmlspecialchars($client['state'] ?? ''); ?>">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="mb-3">
+                                            <label class="form-label">Zip Code</label>
+                                            <input type="text" class="form-control" id="edit_zip_code" name="zip_code" value="<?php echo htmlspecialchars($client['zip_code'] ?? ''); ?>">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Phone</label>
+                                            <input type="tel" class="form-control" id="edit_phone" name="phone" value="<?php echo htmlspecialchars($client['phone'] ?? ''); ?>">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Email</label>
+                                            <input type="email" class="form-control" id="edit_email" name="email" value="<?php echo htmlspecialchars($client['email'] ?? ''); ?>">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Contact Person</label>
+                                            <input type="text" class="form-control" id="edit_contact_person" name="contact_person" value="<?php echo htmlspecialchars($client['contact_person'] ?? ''); ?>">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Branch <span class="text-danger">*</span></label>
+                                            <select class="form-control" id="edit_branch_id" name="branch_id">
+                                                <option value="">Select Branch</option>
+                                                <?php
+                                                $branches_query = "SELECT id, branch_code, branch_name, zone FROM branches ORDER BY branch_name";
+                                                $branches_result = $conn->query($branches_query);
+                                                if ($branches_result && $branches_result->num_rows > 0):
+                                                    while ($branch = $branches_result->fetch_assoc()):
+                                                ?>
+                                                <option value="<?php echo $branch['id']; ?>" 
+                                                        data-zone="<?php echo htmlspecialchars(trim($branch['zone'])); ?>"
+                                                        <?php echo ($client['branch_id'] == $branch['id']) ? 'selected' : ''; ?>>
+                                                     <?php echo htmlspecialchars($branch['branch_code']); ?>-<?php echo htmlspecialchars($branch['branch_name']); ?>
+                                                </option>
+                                                <?php endwhile; endif; ?>
+                                            </select>
+                                            <div class="mt-1">
+                                                <a href="add_branch.php" target="_blank" class="text-decoration-none small text-primary fw-semibold">
+                                                    <i class="fas fa-plus-circle me-1"></i>Add branch manually
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Division</label>
+                                            <input type="text" class="form-control" id="edit_division" name="division" value="<?php echo htmlspecialchars($client['division'] ?? ''); ?>">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Zone</label>
+                                            <input type="text" class="form-control" id="edit_zone" name="zone" value="<?php echo htmlspecialchars($client['zone'] ?? ''); ?>" readonly style="background: #f8f9fa;">
+                                            <small class="text-muted">
+                                                <i class="fas fa-magic text-warning"></i> Zone will be auto-filled when you select a branch
+                                            </small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                            <button type="button" class="btn btn-primary" onclick="updateClient()">
+                                <i class="fas fa-save"></i> Update Client
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Add Facility Modal -->
+            <div class="modal fade" id="addFacilityModal" tabindex="-1">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title"><i class="fas fa-handshake text-primary"></i> Add Facility for <span id="facility_client_name"><?php echo htmlspecialchars($client['client_name']); ?></span></h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div id="facilityMessage"></div>
+                            
+                            <form id="addFacilityForm" enctype="multipart/form-data">
+                                <input type="hidden" id="facility_client_id" value="<?php echo $client['id']; ?>">
+                                
+                                <!-- Facility Type Dropdown -->
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Facility Type <span class="text-danger">*</span></label>
+                                    <select name="facility_type" id="facility_type_select" class="form-control" required onchange="getFacilityGroup(this); loadExistingSecurity(this.value);">
+                                        <option value="">-- Select Facility Type --</option>
+                                        <?php
+                                        $facility_types = $conn->query("SELECT facility_name, facility_group FROM facilities_type WHERE is_active = 1 ORDER BY facility_group ASC, facility_name ASC");
+                                        if ($facility_types && $facility_types->num_rows > 0):
+                                            while ($ft = $facility_types->fetch_assoc()):
+                                        ?>
+                                        <option value="<?php echo htmlspecialchars($ft['facility_name']); ?>" data-group="<?php echo htmlspecialchars($ft['facility_group']); ?>">
+                                            <?php echo htmlspecialchars($ft['facility_name']); ?> (<?php echo htmlspecialchars($ft['facility_group']); ?>)
+                                        </option>
+                                        <?php endwhile; endif; ?>
+                                    </select>
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label fw-bold">Facility Group</label>
+                                            <input type="text" id="facility_group" class="form-control" readonly style="background: #f8f9fa; font-weight: 600;">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label fw-bold">Amount (BDT) <span class="text-danger">*</span></label>
+                                            <input type="number" step="0.01" name="amount" id="facility_amount" class="form-control" placeholder="0.00" required>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Security Section -->
+                                <div class="card border-info mb-3">
+                                    <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                                        <h6 class="mb-0"><i class="fas fa-shield-alt"></i> Security Details</h6>
+                                        <button type="button" class="btn btn-light btn-sm" onclick="addSecurityRow()">
+                                            <i class="fas fa-plus-circle text-success"></i> Add Security
+                                        </button>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="existingSecurityContainer">
+                                            <!-- Existing security will be loaded here -->
+                                        </div>
+                                        <div id="securityMessage" class="small text-muted mb-2">
+                                            <i class="fas fa-info-circle"></i> Select a facility type to view existing security
+                                        </div>
+                                        <div id="securityContainer">
+    <!-- Security rows will be added here -->
+    <div class="security-row row g-2 mb-2" id="defaultSecurityRow">
+        <div class="col-md-4">
+            <label class="form-label small fw-bold text-secondary">Security Type</label>
+            <select name="security_type[]" class="form-control form-control-sm">
+                <option value="">-- Select Type --</option>
+                <option value="Cash">Cash</option>
+                <option value="Bank Guarantee">Bank Guarantee</option>
+                <option value="FDR">FDR</option>
+                <option value="Hypothecation">Hypothecation</option>
+                <option value="Pledge">Pledge</option>
+                <option value="Mortgage">Mortgage</option>
+                <option value="Personal Guarantee">Personal Guarantee</option>
+                <option value="Corporate Guarantee">Corporate Guarantee</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label small fw-bold text-secondary">Value (BDT)</label>
+            <input type="number" step="0.01" name="security_value[]" class="form-control form-control-sm" placeholder="0.00">
+        </div>
+        <div class="col-md-4">
+            <label class="form-label small fw-bold text-secondary">Description</label>
+            <input type="text" name="security_description[]" class="form-control form-control-sm" placeholder="Brief description">
+        </div>
+        <div class="col-md-1 d-flex align-items-end">
+            <button type="button" class="btn btn-danger btn-sm remove-security" onclick="removeSecurityRow(this)" style="display:none;">
+                <i class="fas fa-times"></i>
             </button>
         </div>
     </div>
-    <div class="card-body">
-        <!-- Files List -->
-        <?php if (empty($office_files)): ?>
-            <div class="text-center text-muted py-5">
-                <i class="fas fa-folder-open" style="font-size: 48px;"></i>
-                <p class="mt-3">No files found for this client</p>
-                <div class="d-flex gap-2 justify-content-center">
-                    <a href="add_record.php?client_id=<?php echo $client['id']; ?>" class="btn btn-sm btn-success">
-                        <i class="fas fa-plus"></i> Add New File
-                    </a>
-                    <button class="btn btn-sm btn-warning" onclick="openAssignFileModal(<?php echo $client['id']; ?>)">
-                        <i class="fas fa-link"></i> Assign Existing File
-                    </button>
-                </div>
-            </div>
-        <?php else: ?>
-            <div class="table-responsive">
-                <table class="table table-hover table-sm">
-                    <thead>
-                        <tr>
-                            <th>Client Name</th>
-                            <th>Cabinet</th>
-                            <th>Shelf</th>
-                            <th>Branch</th>
-                            <th>Division</th>
-                            <th>Zone</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($office_files as $file): ?>
-                            <tr>
-                              <td><?php echo htmlspecialchars($file['client'] ?? 'N/A' ); ?></td>
-                                <td>
-                                    <i class="fas fa-archive text-warning"></i>
-                                    <?php echo htmlspecialchars($file['cabinet_name'] ?? 'N/A'); ?>
-                                </td>
-                                <td><?php echo htmlspecialchars($file['shelf_name'] ?? 'N/A'); ?></td>
-                                <td>
-                                    <?php 
-                                    $branch_display = !empty($file['branch_name']) ? $file['branch_name'] : 'N/A';
-                                    echo htmlspecialchars($branch_display); 
-                                    ?>
-                                    <?php if (!empty($file['branch_code'])): ?>
-                                        <small class="text-muted">(<?php echo htmlspecialchars($file['branch_code']); ?>)</small>
-                                    <?php endif; ?>
-                                </td>
-                                <td>
-                                    <?php 
-                                    $division_display = !empty($file['division']) ? $file['division'] : 'N/A';
-                                    $div_badge_class = ($division_display === 'Investment') ? 'bg-success' : (($division_display === 'SME') ? 'bg-warning text-dark' : 'bg-info text-dark');
-                                    ?>
-                                    <span class="badge <?php echo $div_badge_class; ?>">
-                                        <?php echo htmlspecialchars($division_display); ?>
-                                    </span>
-                                </td>
-                                <td><?php echo htmlspecialchars($file['zone'] ?? 'N/A'); ?></td>
-                                <td>
-                                    <a href='transfer_file.php?id=<?php echo $file['id']; ?>' class='btn btn-sm btn-outline-primary' title='Transfer Division'><i class='fas fa-exchange-alt'></i></a>
-                                    <a href="view_details.php?id=<?php echo $file['id']; ?>" class="btn btn-sm btn-outline-info btn-sm-action" title="View Details">
-                                        <i class="fas fa-eye"></i>
-                                    </a>
-                                    <a href="edit.php?id=<?php echo $file['id']; ?>" class="btn btn-sm btn-outline-primary btn-sm-action" title="Edit">
-                                        <i class="fas fa-edit"></i>
-                                    </a>
-              <button class="btn btn-sm btn-outline-danger btn-sm-action" onclick="deleteFile(<?php echo $file['id']; ?>, <?php echo $client['id']; ?>)" title="Remove from Client (File will remain in master list)">
-        <i class="fas fa-unlink"></i>
-    </button>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-        <?php endif; ?>
-    </div>
 </div>
-
-<!-- Assign Existing File Modal -->
-
-<div class="modal fade" id="assignFileModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title"><i class="fas fa-link text-warning"></i> Assign Existing File to Client</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div class="alert alert-info">
-                    <i class="fas fa-info-circle"></i> 
-                    Select an existing file from the dropdown below to assign it to this client.
-                    The file will be linked to <strong><?php echo htmlspecialchars($client['client_name']); ?></strong>
-                    <br><small class="text-muted">Note: The original file name will be preserved.</small>
-                </div>
-                
-                <form id="assignFileForm">
-                    <input type="hidden" id="assign_client_id" value="<?php echo $client['id']; ?>">
-                    
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Select Existing File <span class="text-danger">*</span></label>
-                        <select name="file_id" id="file_select" class="form-control" required onchange="loadFileDetails(this.value)">
-                            <option value="">-- Select File --</option>
-                            <?php
-                          
-                    // FETCH UNASSIGNED FILES - Only files with NULL client_id
-$unassigned_query = "SELECT 
-                        id, 
-                        file_no, 
-                        client, 
-                        cabinet_name, 
-                        shelf_name, 
-                        branch_name, 
-                        branch_code, 
-                        division, 
-                        zone 
-                      FROM office_files 
-                      WHERE (client_id IS NULL OR client_id = 0) AND is_deleted = 0
-                      ORDER BY client ASC, file_no ASC";
-
-                            $unassigned_result = $conn->query($unassigned_query);
-                            if ($unassigned_result && $unassigned_result->num_rows > 0):
-                                while ($file = $unassigned_result->fetch_assoc()):
-                            ?>
-                                <option value="<?php echo $file['id']; ?>"
-                                        data-cabinet="<?php echo htmlspecialchars($file['cabinet_name'] ?? ''); ?>"
-                                        data-shelf="<?php echo htmlspecialchars($file['shelf_name'] ?? ''); ?>"
-                                        data-branch-name="<?php echo htmlspecialchars($file['branch_name'] ?? ''); ?>"
-                                        data-branch-code="<?php echo htmlspecialchars($file['branch_code'] ?? ''); ?>"
-                                        data-division="<?php echo htmlspecialchars($file['division'] ?? ''); ?>"
-                                        data-zone="<?php echo htmlspecialchars($file['zone'] ?? ''); ?>"
-                                        data-client="<?php echo htmlspecialchars($file['client'] ?? ''); ?>">
-                                    <?php 
-                                    // Display the original file name (client column) first
-                                    $display_client = !empty($file['client']) ? $file['client'] : 'Unnamed';
-                                    echo htmlspecialchars($display_client); 
-                                    ?>
-                                </option>
-                            <?php endwhile; ?>
-                            <?php else: ?>
-                                <option value="">No unassigned files found</option>
-                            <?php endif; ?>
-                        </select>
-                        <small class="text-muted">Files are listed alphabetically by original file name.</small>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Original File Name</label>
-                                <input type="text" id="file_client_name" class="form-control" readonly style="background: #f8f9fa; font-weight: 600; color: #006a4e;">
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">File No</label>
-                                <input type="text" id="file_file_no" class="form-control" readonly style="background: #f8f9fa; font-weight: 600; color: #006a4e;">
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-4">
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Cabinet</label>
-                                <input type="text" id="file_cabinet" class="form-control" readonly style="background: #f8f9fa;">
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Shelf</label>
-                                <input type="text" id="file_shelf" class="form-control" readonly style="background: #f8f9fa;">
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Branch</label>
-                                <input type="text" id="file_branch" class="form-control" readonly style="background: #f8f9fa;">
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Division</label>
-                                <input type="text" id="file_division" class="form-control" readonly style="background: #f8f9fa;">
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Zone</label>
-                                <input type="text" id="file_zone" class="form-control" readonly style="background: #f8f9fa;">
-                            </div>
-                        </div>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-primary" onclick="assignFile()">
-                    <i class="fas fa-link"></i> Assign File to Client
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Edit Client Modal -->
-<div class="modal fade" id="editClientModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title"><i class="fas fa-edit text-primary"></i> Edit Client</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <form id="editClientForm">
-                    <input type="hidden" id="edit_client_id" value="<?php echo $client['id']; ?>">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="form-label">Client Name <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="edit_client_name" name="client_name" value="<?php echo htmlspecialchars($client['client_name']); ?>" required>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="form-label">Client Code</label>
-                                <input type="text" class="form-control" id="edit_client_code" name="client_code" value="<?php echo htmlspecialchars($client['client_code'] ?? ''); ?>">
-                            </div>
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Address</label>
-                        <textarea class="form-control" id="edit_address" name="address" rows="2"><?php echo htmlspecialchars($client['address'] ?? ''); ?></textarea>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-4">
-                            <div class="mb-3">
-                                <label class="form-label">City</label>
-                                <input type="text" class="form-control" id="edit_city" name="city" value="<?php echo htmlspecialchars($client['city'] ?? ''); ?>">
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="mb-3">
-                                <label class="form-label">State</label>
-                                <input type="text" class="form-control" id="edit_state" name="state" value="<?php echo htmlspecialchars($client['state'] ?? ''); ?>">
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="mb-3">
-                                <label class="form-label">Zip Code</label>
-                                <input type="text" class="form-control" id="edit_zip_code" name="zip_code" value="<?php echo htmlspecialchars($client['zip_code'] ?? ''); ?>">
-                            </div>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="form-label">Phone</label>
-                                <input type="tel" class="form-control" id="edit_phone" name="phone" value="<?php echo htmlspecialchars($client['phone'] ?? ''); ?>">
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="form-label">Email</label>
-                                <input type="email" class="form-control" id="edit_email" name="email" value="<?php echo htmlspecialchars($client['email'] ?? ''); ?>">
-                            </div>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="form-label">Contact Person</label>
-                                <input type="text" class="form-control" id="edit_contact_person" name="contact_person" value="<?php echo htmlspecialchars($client['contact_person'] ?? ''); ?>">
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="form-label">Branch <span class="text-danger">*</span></label>
-                                <select class="form-control" id="edit_branch_id" name="branch_id">
-                                    <option value="">Select Branch</option>
-                                    <?php
-                                    // Fetch branches for dropdown
-                                    $branches_query = "SELECT id, branch_code, branch_name, zone FROM branches ORDER BY branch_name";
-                                    $branches_result = $conn->query($branches_query);
-                                    if ($branches_result && $branches_result->num_rows > 0):
-                                        while ($branch = $branches_result->fetch_assoc()):
-                                    ?>
-                                        <option value="<?php echo $branch['id']; ?>" 
-                                                data-zone="<?php echo htmlspecialchars(trim($branch['zone'])); ?>"
-                                                <?php echo ($client['branch_id'] == $branch['id']) ? 'selected' : ''; ?>>
-                                             <?php echo htmlspecialchars($branch['branch_code']); ?>-<?php echo htmlspecialchars($branch['branch_name']); ?>
-                                        </option>
-                                    <?php endwhile; endif; ?>
-                                </select>
-                                <div class="mt-1">
-                                    <a href="add_branch.php" target="_blank" class="text-decoration-none small text-primary fw-semibold">
-                                        <i class="fas fa-plus-circle me-1"></i>Add branch manually
-                                    </a>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="form-label">Division</label>
-                                <input type="text" class="form-control" id="edit_division" name="division" value="<?php echo htmlspecialchars($client['division'] ?? ''); ?>">
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="form-label">Zone</label>
-                                <input type="text" class="form-control" id="edit_zone" name="zone" value="<?php echo htmlspecialchars($client['zone'] ?? ''); ?>" readonly style="background: #f8f9fa;">
-                                <small class="text-muted">
-                                    <i class="fas fa-magic text-warning"></i> Zone will be auto-filled when you select a branch
-                                </small>
-                            </div>
-                        </div>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-primary" onclick="updateClient()">
-                    <i class="fas fa-save"></i> Update Client
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Add Facility Modal -->
-<div class="modal fade" id="addFacilityModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title"><i class="fas fa-handshake text-primary"></i> Add Facility for <span id="facility_client_name"><?php echo htmlspecialchars($client['client_name']); ?></span></h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div id="facilityMessage"></div>
-                
-                <form id="addFacilityForm" enctype="multipart/form-data">
-                    <input type="hidden" id="facility_client_id" value="<?php echo $client['id']; ?>">
-                    
-                    <!-- Facility Type Dropdown -->
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Facility Type <span class="text-danger">*</span></label>
-                        <select name="facility_type" id="facility_type_select" class="form-control" required onchange="getFacilityGroup(this)">
-                            <option value="">-- Select Facility Type --</option>
-                            <?php
-                            $facility_types = $conn->query("SELECT facility_name, facility_group FROM facilities_type WHERE is_active = 1 ORDER BY facility_group ASC, facility_name ASC");
-                            if ($facility_types && $facility_types->num_rows > 0):
-                                while ($ft = $facility_types->fetch_assoc()):
-                            ?>
-                                <option value="<?php echo htmlspecialchars($ft['facility_name']); ?>" data-group="<?php echo htmlspecialchars($ft['facility_group']); ?>">
-                                    <?php echo htmlspecialchars($ft['facility_name']); ?> (<?php echo htmlspecialchars($ft['facility_group']); ?>)
-                                </option>
-                            <?php endwhile; endif; ?>
-                        </select>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Facility Group</label>
-                                <input type="text" id="facility_group" class="form-control" readonly style="background: #f8f9fa; font-weight: 600;">
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Amount (BDT) <span class="text-danger">*</span></label>
-                                <input type="number" step="0.01" name="amount" id="facility_amount" class="form-control" placeholder="0.00" required>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Security Section -->
-                    <div class="card border-info mb-3">
-                        <div class="card-header bg-info text-white">
-                            <h6 class="mb-0"><i class="fas fa-shield-alt"></i> Security Details</h6>
-                        </div>
-                        <div class="card-body">
-                            <div class="row">
-                                <div class="col-md-4">
-                                    <div class="mb-3">
-                                        <label class="form-label fw-bold">Security Type</label>
-                                        <select name="security_type" id="security_type" class="form-control">
-                                            <option value="">-- Select Security Type --</option>
-                                            <option value="Cash">Cash</option>
-                                            <option value="Bank Guarantee">Bank Guarantee</option>
-                                            <option value="FDR">FDR</option>
-                                            <option value="Hypothecation">Hypothecation</option>
-                                            <option value="Pledge">Pledge</option>
-                                            <option value="Mortgage">Mortgage</option>
-                                            <option value="Personal Guarantee">Personal Guarantee</option>
-                                            <option value="Corporate Guarantee">Corporate Guarantee</option>
-                                        </select>
+                                        <div id="dynamicSecurityContainer"></div>
+                                        
+                                        <div class="mt-2">
+                                            <button type="button" class="btn btn-success btn-sm" onclick="addSecurityRow()">
+                                                <i class="fas fa-plus-circle"></i> Add Another Security
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
-                                <div class="col-md-4">
-                                    <div class="mb-3">
-                                        <label class="form-label fw-bold">Security Value (BDT)</label>
-                                        <input type="number" step="0.01" name="security_value" id="security_value" class="form-control" placeholder="0.00">
+                                
+                                <!-- Sanction Details -->
+                                <div class="card border-primary mb-3">
+                                    <div class="card-header bg-primary text-white">
+                                        <h6 class="mb-0"><i class="fas fa-calendar-check"></i> Sanction Details</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label fw-bold">Sanction Letter Ref No</label>
+                                                    <div class="input-group">
+                                                        <span class="input-group-text" style="background: #e7f1ff; border-color: #b8daff; color: #094b96; font-weight: 700;">FSIB/HO/INVT/</span>
+                                                        <input type="text" name="sanction_letter_ref_no" id="sanction_letter_ref_no" class="form-control" placeholder="Enter suffix (e.g., 2026/001)">
+                                                    </div>
+                                                    <small class="text-muted">
+                                                        <i class="fas fa-info-circle"></i> 
+                                                        Full Ref: <span id="full_ref_preview">FSIB/HO/INVT/[suffix]</span>
+                                                    </small>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label fw-bold">Sanction Date</label>
+                                                    <input type="date" name="sanction_date" id="sanction_date" class="form-control">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label fw-bold">Committee Meet No</label>
+                                                    <input type="text" name="comm_meet_no" id="comm_meet_no" class="form-control" placeholder="e.g., COMM-001">
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label fw-bold">Committee Meet Date</label>
+                                                    <input type="date" name="comm_meet_date" id="comm_meet_date" class="form-control">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label fw-bold">Board Meet No</label>
+                                                    <input type="text" name="board_meet_no" id="board_meet_no" class="form-control" placeholder="e.g., BOARD-001">
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label fw-bold">Board Meet Date</label>
+                                                    <input type="date" name="board_meet_date" id="board_meet_date" class="form-control">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label fw-bold">Facility As</label>
+                                                    <select name="facility_as" id="facility_as" class="form-control">
+                                                        <option value="">-- Select --</option>
+                                                        <option value="Fresh">Fresh</option>
+                                                        <option value="Renewal">Renewal</option>
+                                                        <option value="Time Extension">Time Extension</option>
+                                                        <option value="Renewal with Enhancement">Renewal with Enhancement</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label fw-bold">Power Delegation</label>
+                                                <select name="power_delegation" id="power_delegation" class="form-control">
+                                                    <option value="">-- Select --</option>
+                                                    <option value="MD">MD</option>
+                                                    <option value="Board">Board</option>
+                                                    <option value="EC">EC</option>
+                                                    <option value="CEO">CEO</option>
+                                                    <option value="DMD">DMD</option>
+                                                </select>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
-                                <div class="col-md-4">
-                                    <div class="mb-3">
-                                        <label class="form-label fw-bold">Security Description</label>
-                                        <input type="text" name="security_description" id="security_description" class="form-control" placeholder="Brief description">
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="alert alert-warning small">
-                                <i class="fas fa-info-circle"></i> 
-                                <strong>Note:</strong> If this is a renewal, the security value will <strong>update</strong> (not add) to the new value.
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Sanction Details -->
-                    <div class="card border-primary mb-3">
-                        <div class="card-header bg-primary text-white">
-                            <h6 class="mb-0"><i class="fas fa-calendar-check"></i> Sanction Details</h6>
-                        </div>
-                        <div class="card-body">
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label class="form-label fw-bold">Sanction Date</label>
-                                        <input type="date" name="sanction_date" id="sanction_date" class="form-control">
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label class="form-label fw-bold">Sanction Letter Ref No</label>
-                                        <input type="text" name="sanction_letter_ref_no" id="sanction_letter_ref_no" class="form-control" placeholder="e.g., FSIB/HO/INVT/2026/001">
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label class="form-label fw-bold">Committee Meet No</label>
-                                        <input type="text" name="comm_meet_no" id="comm_meet_no" class="form-control" placeholder="e.g., COMM-001">
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label class="form-label fw-bold">Committee Meet Date</label>
-                                        <input type="date" name="comm_meet_date" id="comm_meet_date" class="form-control">
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label class="form-label fw-bold">Board Meet No</label>
-                                        <input type="text" name="board_meet_no" id="board_meet_no" class="form-control" placeholder="e.g., BOARD-001">
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label class="form-label fw-bold">Board Meet Date</label>
-                                        <input type="date" name="board_meet_date" id="board_meet_date" class="form-control">
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label class="form-label fw-bold">Facility As</label>
-                                        <select name="facility_as" id="facility_as" class="form-control">
-                                            <option value="">-- Select --</option>
-                                            <option value="Fresh">Fresh</option>
-                                            <option value="Renewal">Renewal</option>
-                                            <option value="Time Extension">Time Extension</option>
-                                            <option value="Renewal with Enhancement">Renewal with Enhancement</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label class="form-label fw-bold">Power Delegation</label>
-                                        <select name="power_delegation" id="power_delegation" class="form-control">
-                                            <option value="">-- Select --</option>
-                                            <option value="MD">MD</option>
-                                            <option value="Board">Board</option>
-                                            <option value="EC">EC</option>
-                                        </select>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- File Attachments Section -->
-                    <div class="card border-success mb-3">
-                        <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
-                            <h6 class="mb-0"><i class="fas fa-paperclip"></i> Document Attachments</h6>
-                            <button type="button" class="btn btn-light btn-sm" onclick="addAttachmentRow()">
-                                <i class="fas fa-plus-circle text-success"></i> Add Document
-                            </button>
-                        </div>
-                        <div class="card-body">
-                            <div id="attachments-container">
-                                <!-- Static Documents -->
-                                <div class="row g-2 mb-2 attachment-row">
-                                    <div class="col-md-4">
-                                        <label class="form-label small fw-bold text-secondary">Document Type</label>
-                                        <select name="doc_type[]" class="form-control form-control-sm doc-type-select" onchange="toggleOtherDoc(this)">
-                                            <option value="Branch Proposal">Branch Proposal</option>
-                                            <option value="Committee Memo">Committee Memo</option>
-                                            <option value="Committee Minutes">Committee Minutes</option>
-                                            <option value="Office Note">Office Note</option>
-                                            <option value="Board Memo">Board Memo</option>
-                                            <option value="Board Minutes">Board Minutes</option>
-                                            <option value="Sanction Letter">Sanction Letter</option>
-                                            <option value="Other">Other</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <label class="form-label small fw-bold text-secondary">Description</label>
-                                        <input type="text" name="doc_description[]" class="form-control form-control-sm" placeholder="Document description">
-                                    </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label small fw-bold text-secondary">Upload File</label>
-                                        <input type="file" name="doc_file[]" class="form-control form-control-sm" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png">
-                                    </div>
-                                    <div class="col-md-1 d-flex align-items-end">
-                                        <button type="button" class="btn btn-danger btn-sm remove-attachment" onclick="removeAttachmentRow(this)" style="display:none;">
-                                            <i class="fas fa-times"></i>
+                                
+                                <!-- File Attachments Section -->
+                                <div class="card border-success mb-3">
+                                    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                                        <h6 class="mb-0"><i class="fas fa-paperclip"></i> Document Attachments</h6>
+                                        <button type="button" class="btn btn-light btn-sm" onclick="addAttachmentRow()">
+                                            <i class="fas fa-plus-circle text-success"></i> Add Document
                                         </button>
                                     </div>
+                                    <div class="card-body">
+                                        <div id="attachments-container">
+                                            <div class="row g-2 mb-2 attachment-row">
+                                                <div class="col-md-4">
+                                                    <label class="form-label small fw-bold text-secondary">Document Type</label>
+                                                    <select name="doc_type[]" class="form-control form-control-sm doc-type-select" onchange="toggleOtherDoc(this)">
+                                                        <option value="Branch Proposal">Branch Proposal</option>
+                                                        <option value="Committee Memo">Committee Memo</option>
+                                                        <option value="Committee Minutes">Committee Minutes</option>
+                                                        <option value="Office Note">Office Note</option>
+                                                        <option value="Board Memo">Board Memo</option>
+                                                        <option value="Board Minutes">Board Minutes</option>
+                                                        <option value="Sanction Letter">Sanction Letter</option>
+                                                        <option value="Other">Other</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label class="form-label small fw-bold text-secondary">Description</label>
+                                                    <input type="text" name="doc_description[]" class="form-control form-control-sm" placeholder="Document description">
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label class="form-label small fw-bold text-secondary">Upload File</label>
+                                                    <input type="file" name="doc_file[]" class="form-control form-control-sm" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png">
+                                                </div>
+                                                <div class="col-md-1 d-flex align-items-end">
+                                                    <button type="button" class="btn btn-danger btn-sm remove-attachment" onclick="removeAttachmentRow(this)" style="display:none;">
+                                                        <i class="fas fa-times"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div id="dynamic-attachments-container"></div>
+                                        <div class="mt-2">
+                                            <button type="button" class="btn btn-success btn-sm" onclick="addAttachmentRow()">
+                                                <i class="fas fa-plus-circle"></i> Add Another Document
+                                            </button>
+                                            <small class="text-muted ms-2">Supported formats: PDF, DOC, DOCX, XLS, XLSX, JPG, PNG</small>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                            <div id="dynamic-attachments-container"></div>
-                            <div class="mt-2">
-                                <button type="button" class="btn btn-success btn-sm" onclick="addAttachmentRow()">
-                                    <i class="fas fa-plus-circle"></i> Add Another Document
-                                </button>
-                                <small class="text-muted ms-2">Supported formats: PDF, DOC, DOCX, XLS, XLSX, JPG, PNG</small>
-                            </div>
+                            </form>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                            <button type="button" class="btn btn-primary" onclick="saveFacility()">
+                                <i class="fas fa-save"></i> Save Facility
+                            </button>
                         </div>
                     </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-primary" onclick="saveFacility()">
-                    <i class="fas fa-save"></i> Save Facility
-                </button>
+                </div>
             </div>
         </div>
     </div>
 </div>
+
 <script src="assets/js/jquery-3.6.0.min.js"></script>
 <script src="assets/js/bootstrap.bundle.min.js"></script>
 
 <script>
-// Auto-populate zone when branch is selected in edit modal (using jQuery)
+// ============================================================
+// AUTO-POPULATE ZONE IN EDIT MODAL
+// ============================================================
 function autoPopulateZoneEdit() {
     const branchSelect = document.getElementById('edit_branch_id');
     const zoneInput = document.getElementById('edit_zone');
@@ -1254,7 +1266,6 @@ function autoPopulateZoneEdit() {
         const zone = selectedOption.getAttribute('data-zone') || "";
         zoneInput.value = zone.trim();
         
-        // Add visual feedback
         if (zone.trim() !== "") {
             zoneInput.style.borderColor = '#28a745';
             zoneInput.style.backgroundColor = '#f0fff4';
@@ -1269,27 +1280,20 @@ function autoPopulateZoneEdit() {
     }
 }
 
-// When edit modal opens, trigger auto-populate if branch is already selected
-$(document).ready(function() {
-    // Bind change event to branch select using jQuery
-    $(document).on('change', '#edit_branch_id', function() {
-        autoPopulateZoneEdit();
-    });
-    
-    // When edit modal is shown, auto-populate zone
-    $(document).on('shown.bs.modal', '#editClientModal', function() {
-        autoPopulateZoneEdit();
-    });
-});
-
-function openEditModal() { 
-    $('#editClientModal').modal('show'); 
-}
-
+// ============================================================
+// TOAST NOTIFICATION
+// ============================================================
 function showToast(message, type = 'success') {
     const toast = $(`<div class="toast-custom ${type}"><i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'} me-2"></i>${message}</div>`);
     $('#toastContainer').append(toast);
     setTimeout(() => { toast.fadeOut(500, function() { $(this).remove(); }); }, 3000);
+}
+
+// ============================================================
+// EDIT CLIENT
+// ============================================================
+function openEditModal() { 
+    $('#editClientModal').modal('show'); 
 }
 
 function updateClient() {
@@ -1347,12 +1351,9 @@ function updateClient() {
     });
 }
 
-function addFacility(clientId) {
-    window.location.href = 'add_facility.php?client_id=' + clientId;
-}
-
-
-// Delete/Unlink file from client profile
+// ============================================================
+// DELETE/UNLINK FILE
+// ============================================================
 function deleteFile(fileId, clientId) {
     if (!confirm('Are you sure you want to remove this file from the client profile?\n\nThe file will still be available in the master file list and can be reassigned later.')) {
         return;
@@ -1365,11 +1366,9 @@ function deleteFile(fileId, clientId) {
             $('#loadingSpinner').removeClass('show');
             if (response.success) {
                 showToast('File removed from client profile successfully!', 'success');
-                // Remove the file row from the table
                 const row = $(`button[onclick="deleteFile(${fileId}, ${clientId})"]`).closest('tr');
                 row.fadeOut(500, function() {
                     $(this).remove();
-                    // Update file count
                     updateFileCount();
                 });
             } else {
@@ -1383,22 +1382,17 @@ function deleteFile(fileId, clientId) {
     });
 }
 
-// Update file count in stats
 function updateFileCount() {
     const count = $('#filesContainer table tbody tr').length;
     $('#totalFiles').text(count);
 }
 
-// Update file count in stats
-function updateFileCount() {
-    const count = $('#filesContainer table tbody tr').length;
-    $('#totalFiles').text(count);
-}
-// Open Assign File Modal
+// ============================================================
+// ASSIGN EXISTING FILE
+// ============================================================
 function openAssignFileModal(clientId) {
     $('#assign_client_id').val(clientId);
     $('#assignFileModal').modal('show');
-    // Reset form
     $('#file_select').val('');
     $('#file_client_name').val('');
     $('#file_file_no').val('');
@@ -1409,8 +1403,6 @@ function openAssignFileModal(clientId) {
     $('#file_zone').val('');
 }
 
-// Load file details when selected from dropdown
-// Load file details when selected from dropdown
 function loadFileDetails(fileId) {
     if (!fileId) {
         $('#file_client_name').val('');
@@ -1426,7 +1418,6 @@ function loadFileDetails(fileId) {
     const select = document.getElementById('file_select');
     const selectedOption = select.options[select.selectedIndex];
     
-    // Get data from data attributes
     const client = selectedOption.getAttribute('data-client') || '';
     const cabinet = selectedOption.getAttribute('data-cabinet') || '';
     const shelf = selectedOption.getAttribute('data-shelf') || '';
@@ -1434,11 +1425,10 @@ function loadFileDetails(fileId) {
     const branchCode = selectedOption.getAttribute('data-branch-code') || '';
     const division = selectedOption.getAttribute('data-division') || '';
     const zone = selectedOption.getAttribute('data-zone') || '';
-    const fileNo = selectedOption.getAttribute('data-file-no') || '';  // <-- Get from data attribute
+    const fileNo = selectedOption.getAttribute('data-file-no') || '';
     
-    // Populate fields
     $('#file_client_name').val(client);
-    $('#file_file_no').val(fileNo);  // <-- Now only the file number
+    $('#file_file_no').val(fileNo);
     $('#file_cabinet').val(cabinet);
     $('#file_shelf').val(shelf);
     $('#file_branch').val(branchName + (branchCode ? ' (' + branchCode + ')' : ''));
@@ -1446,7 +1436,6 @@ function loadFileDetails(fileId) {
     $('#file_zone').val(zone);
 }
 
-// Assign file to client
 function assignFile() {
     const fileId = $('#file_select').val();
     const clientId = $('#assign_client_id').val();
@@ -1475,58 +1464,6 @@ function assignFile() {
             $('#loadingSpinner').removeClass('show');
             if (response.success) {
                 $('#assignFileModal').modal('hide');
-                showToast('File assigned successfully! Original file name: ' + response.file_name, 'success');
-                setTimeout(function() {
-                    location.reload();
-                }, 1500);
-            } else {
-                showToast('Error: ' + response.error, 'error');
-            }
-        },
-        error: function(xhr) {
-            $('#loadingSpinner').removeClass('show');
-            showToast('Error: ' + xhr.responseText, 'error');
-        }
-    });
-}
-
-// Assign file to client
-
-function assignFile() {
-    const fileId = $('#file_select').val();
-    const clientId = $('#assign_client_id').val();
-    
-    if (!fileId) {
-        alert('Please select a file to assign.');
-        return;
-    }
-    
-    if (!confirm('Are you sure you want to assign this file to the client?')) {
-        return;
-    }
-    
-    $('#loadingSpinner').addClass('show');
-    
-    // Prepare data
-    const postData = {
-        file_id: parseInt(fileId),
-        client_id: parseInt(clientId)
-    };
-    
-    console.log('Sending data:', postData); // Debug log
-    
-    $.ajax({
-        url: 'api/assign_file.php',
-        method: 'POST',
-        data: JSON.stringify(postData),
-        contentType: 'application/json',
-        dataType: 'json',
-        success: function(response) {
-            $('#loadingSpinner').removeClass('show');
-            console.log('Response:', response); // Debug log
-            
-            if (response.success) {
-                $('#assignFileModal').modal('hide');
                 showToast('File assigned successfully!', 'success');
                 setTimeout(function() {
                     location.reload();
@@ -1535,21 +1472,9 @@ function assignFile() {
                 showToast('Error: ' + (response.error || 'Unknown error'), 'error');
             }
         },
-        error: function(xhr, status, error) {
+        error: function(xhr) {
             $('#loadingSpinner').removeClass('show');
-            console.error('AJAX Error:', xhr, status, error);
-            console.error('Response Text:', xhr.responseText);
-            
-            let errorMsg = 'An error occurred';
-            try {
-                const response = JSON.parse(xhr.responseText);
-                if (response && response.error) {
-                    errorMsg = response.error;
-                }
-            } catch(e) {
-                errorMsg = 'Server error: ' + xhr.status + ' ' + xhr.statusText;
-            }
-            showToast('Error: ' + errorMsg, 'error');
+            showToast('Error: ' + xhr.responseText, 'error');
         }
     });
 }
@@ -1562,9 +1487,6 @@ function openAddFacilityModal(clientId) {
     document.getElementById('facility_type_select').value = '';
     document.getElementById('facility_group').value = '';
     document.getElementById('facility_amount').value = '';
-    document.getElementById('security_type').value = '';
-    document.getElementById('security_value').value = '';
-    document.getElementById('security_description').value = '';
     document.getElementById('sanction_date').value = '';
     document.getElementById('sanction_letter_ref_no').value = '';
     document.getElementById('comm_meet_no').value = '';
@@ -1574,6 +1496,13 @@ function openAddFacilityModal(clientId) {
     document.getElementById('facility_as').value = '';
     document.getElementById('power_delegation').value = '';
     document.getElementById('facilityMessage').innerHTML = '';
+    
+    // Reset security
+    document.getElementById('existingSecurityContainer').innerHTML = '';
+    document.getElementById('securityMessage').innerHTML = '<i class="fas fa-info-circle"></i> Select a facility type to view existing security';
+    
+    // Reset ref preview
+    document.getElementById('full_ref_preview').textContent = 'FSIB/HO/INVT/[suffix]';
     
     // Set client name
     document.getElementById('facility_client_name').textContent = '<?php echo htmlspecialchars($client['client_name']); ?>';
@@ -1586,8 +1515,9 @@ function openAddFacilityModal(clientId) {
     // Show modal
     $('#addFacilityModal').modal('show');
 }
+
 // ============================================================
-// GET FACILITY GROUP WHEN TYPE IS SELECTED
+// GET FACILITY GROUP
 // ============================================================
 function getFacilityGroup(selectElement) {
     const selectedOption = selectElement.options[selectElement.selectedIndex];
@@ -1596,16 +1526,28 @@ function getFacilityGroup(selectElement) {
     if (selectedOption && selectedOption.value !== "") {
         const group = selectedOption.getAttribute('data-group') || '';
         groupInput.value = group;
-        console.log('Facility Type:', selectedOption.value, 'Group:', group);
     } else {
         groupInput.value = '';
     }
 }
+
+// ============================================================
+// UPDATE SANCTION REF PREVIEW
+// ============================================================
+function updateRefPreview() {
+    const prefix = 'FSIB/HO/INVT/';
+    const suffixInput = document.getElementById('sanction_letter_ref_no');
+    const previewSpan = document.getElementById('full_ref_preview');
+    
+    if (suffixInput && previewSpan) {
+        const suffix = suffixInput.value.trim() || '[suffix]';
+        previewSpan.textContent = prefix + suffix;
+    }
+}
+
 // ============================================================
 // ATTACHMENT FUNCTIONS
 // ============================================================
-
-// Add attachment row
 function addAttachmentRow() {
     const container = document.getElementById('dynamic-attachments-container');
     const row = document.createElement('div');
@@ -1638,7 +1580,6 @@ function addAttachmentRow() {
     container.appendChild(row);
 }
 
-// Remove attachment row
 function removeAttachmentRow(button) {
     const row = button.closest('.attachment-row');
     if (row) {
@@ -1646,7 +1587,6 @@ function removeAttachmentRow(button) {
     }
 }
 
-// Toggle Other document type
 function toggleOtherDoc(selectElement) {
     const row = selectElement.closest('.attachment-row');
     const descInput = row.querySelector('input[name="doc_description[]"]');
@@ -1657,6 +1597,168 @@ function toggleOtherDoc(selectElement) {
         descInput.placeholder = 'Document description';
     }
 }
+
+// ============================================================
+// EXISTING SECURITY FUNCTIONS
+// ============================================================
+
+// Load existing security for the selected facility type
+function loadExistingSecurity(facilityType) {
+    const clientId = document.getElementById('facility_client_id').value;
+    const container = document.getElementById('existingSecurityContainer');
+    const securityMessage = document.getElementById('securityMessage');
+    
+    if (!facilityType) {
+        container.innerHTML = '';
+        if (securityMessage) {
+            securityMessage.innerHTML = '<i class="fas fa-info-circle"></i> Select a facility type to view existing security';
+            securityMessage.className = 'small text-muted mb-2';
+        }
+        return;
+    }
+    
+    // Show loading
+    container.innerHTML = '<div class="text-muted small"><i class="fas fa-spinner fa-spin"></i> Loading security details...</div>';
+    if (securityMessage) {
+        securityMessage.innerHTML = '';
+    }
+    
+    console.log('Loading security for facility type:', facilityType, 'Client ID:', clientId);
+    
+    $.ajax({
+        url: 'api/get_security.php',
+        method: 'POST',
+        data: JSON.stringify({
+            client_id: clientId,
+            facility_type: facilityType
+        }),
+        contentType: 'application/json',
+        dataType: 'json',
+        timeout: 10000, // 10 second timeout
+        success: function(response) {
+            console.log('Security API Response:', response);
+            
+            if (response.success && response.data && response.data.length > 0) {
+                let html = '<div class="alert alert-info small mb-2">';
+                html += '<i class="fas fa-info-circle"></i> <strong>Existing Security Found:</strong> The following security details exist for this facility type.';
+                html += ' You can update them or add new security below.';
+                html += '</div>';
+                html += '<div class="table-responsive">';
+                html += '<table class="table table-sm table-bordered mb-2" style="font-size:0.85rem;">';
+                html += '<thead class="table-light">';
+                html += '<tr>';
+                html += '<th>#</th>';
+                html += '<th>Security Type</th>';
+                html += '<th>Value (BDT)</th>';
+                html += '<th>Description</th>';
+                html += '</tr>';
+                html += '</thead>';
+                html += '<tbody>';
+                
+                let count = 1;
+                response.data.forEach(function(security) {
+                    html += '<tr>';
+                    html += '<td>' + count + '</td>';
+                    html += '<td><strong>' + (security.security_type || 'N/A') + '</strong></td>';
+                    html += '<td>' + (security.security_value ? parseFloat(security.security_value).toFixed(2) : '0.00') + '</td>';
+                    html += '<td>' + (security.security_description || 'N/A') + '</td>';
+                    html += '</tr>';
+                    count++;
+                });
+                
+                html += '</tbody></table></div>';
+                html += '<div class="small text-muted mb-2">';
+                html += '<i class="fas fa-arrow-up"></i> Security shown above is linked to this facility type. ';
+                html += 'When you save, these will be <strong>updated</strong> with new values.';
+                html += '</div>';
+                
+                container.innerHTML = html;
+                if (securityMessage) {
+                    securityMessage.innerHTML = '';
+                }
+            } else {
+                container.innerHTML = '';
+                if (securityMessage) {
+                    securityMessage.innerHTML = '<i class="fas fa-info-circle"></i> No existing security found for this facility type. Add new security below.';
+                    securityMessage.className = 'small text-info mb-2';
+                }
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error('Error loading security:', xhr, status, error);
+            console.error('Response Text:', xhr.responseText);
+            
+            container.innerHTML = '';
+            if (securityMessage) {
+                securityMessage.innerHTML = '<i class="fas fa-exclamation-circle text-warning"></i> Could not load security details. You can add security manually below.';
+                securityMessage.className = 'small text-warning mb-2';
+            }
+            
+            // If the API doesn't exist, show a message but don't block the user
+            if (xhr.status === 404) {
+                if (securityMessage) {
+                    securityMessage.innerHTML = '<i class="fas fa-info-circle"></i> Security API not found. You can add security manually below.';
+                    securityMessage.className = 'small text-info mb-2';
+                }
+            }
+        }
+    });
+}
+// ============================================================
+// SECURITY ROW FUNCTIONS
+// ============================================================
+
+// Add security row
+function addSecurityRow() {
+    const container = document.getElementById('dynamicSecurityContainer');
+    const row = document.createElement('div');
+    row.className = 'security-row row g-2 mb-2';
+    row.innerHTML = `
+        <div class="col-md-4">
+            <label class="form-label small fw-bold text-secondary">Security Type</label>
+            <select name="security_type[]" class="form-control form-control-sm">
+                <option value="">-- Select Type --</option>
+                <option value="Cash">Cash</option>
+                <option value="Bank Guarantee">Bank Guarantee</option>
+                <option value="FDR">FDR</option>
+                <option value="Hypothecation">Hypothecation</option>
+                <option value="Pledge">Pledge</option>
+                <option value="Mortgage">Mortgage</option>
+                <option value="Personal Guarantee">Personal Guarantee</option>
+                <option value="Corporate Guarantee">Corporate Guarantee</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label small fw-bold text-secondary">Value (BDT)</label>
+            <input type="number" step="0.01" name="security_value[]" class="form-control form-control-sm" placeholder="0.00">
+        </div>
+        <div class="col-md-4">
+            <label class="form-label small fw-bold text-secondary">Description</label>
+            <input type="text" name="security_description[]" class="form-control form-control-sm" placeholder="Brief description">
+        </div>
+        <div class="col-md-1 d-flex align-items-end">
+            <button type="button" class="btn btn-danger btn-sm remove-security" onclick="removeSecurityRow(this)">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    `;
+    container.appendChild(row);
+}
+
+// Remove security row
+function removeSecurityRow(button) {
+    const row = button.closest('.security-row');
+    if (row) {
+        // Don't remove if it's the last row
+        const allRows = document.querySelectorAll('.security-row');
+        if (allRows.length <= 1) {
+            alert('You must keep at least one security row.');
+            return;
+        }
+        row.remove();
+    }
+}
+
 // ============================================================
 // SAVE FACILITY WITH ATTACHMENTS
 // ============================================================
@@ -1665,11 +1767,8 @@ function saveFacility() {
     const facilityType = document.getElementById('facility_type_select').value;
     const facilityGroup = document.getElementById('facility_group').value;
     const amount = document.getElementById('facility_amount').value;
-    const securityType = document.getElementById('security_type').value;
-    const securityValue = document.getElementById('security_value').value;
-    const securityDescription = document.getElementById('security_description').value;
     const sanctionDate = document.getElementById('sanction_date').value;
-    const sanctionLetterRefNo = document.getElementById('sanction_letter_ref_no').value;
+    const sanctionRefSuffix = document.getElementById('sanction_letter_ref_no').value.trim();
     const commMeetNo = document.getElementById('comm_meet_no').value;
     const commMeetDate = document.getElementById('comm_meet_date').value;
     const boardMeetNo = document.getElementById('board_meet_no').value;
@@ -1705,17 +1804,49 @@ function saveFacility() {
     formData.append('facility_type', facilityType);
     formData.append('facility_group', facilityGroup || 'General');
     formData.append('amount', amount);
-    formData.append('security_type', securityType || '');
-    formData.append('security_value', securityValue || '');
-    formData.append('security_description', securityDescription || '');
     formData.append('sanction_date', sanctionDate || '');
-    formData.append('sanction_letter_ref_no', sanctionLetterRefNo || '');
+    
+    // Construct full sanction ref with prefix
+    const prefix = 'FSIB/HO/INVT/';
+    const fullRef = sanctionRefSuffix ? prefix + sanctionRefSuffix : '';
+    formData.append('sanction_letter_ref_no', fullRef);
+    
     formData.append('comm_meet_no', commMeetNo || '');
     formData.append('comm_meet_date', commMeetDate || '');
     formData.append('board_meet_no', boardMeetNo || '');
     formData.append('board_meet_date', boardMeetDate || '');
     formData.append('facility_as', facilityAs || '');
     formData.append('power_delegation', powerDelegation || '');
+    
+    // ============================================================
+    // IMPORTANT: Collect security data from ALL rows
+    // ============================================================
+    // Get all security rows including the default one and dynamic ones
+    const allSecurityRows = document.querySelectorAll('.security-row');
+    let securityCount = 0;
+    
+    allSecurityRows.forEach(function(row) {
+        const typeSelect = row.querySelector('select[name="security_type[]"]');
+        const valueInput = row.querySelector('input[name="security_value[]"]');
+        const descInput = row.querySelector('input[name="security_description[]"]');
+        
+        if (typeSelect && valueInput) {
+            const type = typeSelect.value.trim();
+            const value = valueInput.value.trim();
+            const desc = descInput ? descInput.value.trim() : '';
+            
+            // Only add if type and value are provided
+            if (type && value) {
+                formData.append('security_type[]', type);
+                formData.append('security_value[]', value);
+                formData.append('security_description[]', desc || '');
+                securityCount++;
+            }
+        }
+    });
+    
+    console.log('Security rows found:', allSecurityRows.length);
+    console.log('Valid security records to save:', securityCount);
     
     // Collect attachments
     const docTypes = document.querySelectorAll('select[name="doc_type[]"]');
@@ -1736,7 +1867,13 @@ function saveFacility() {
         }
     }
     
-    console.log('Sending facility with ' + attachmentCount + ' attachments');
+    console.log('Sending facility with ' + securityCount + ' security records and ' + attachmentCount + ' attachments');
+    console.log('Sanction Ref:', fullRef);
+    
+    // Log all form data for debugging
+    for (let pair of formData.entries()) {
+        console.log(pair[0] + ': ' + pair[1]);
+    }
     
     $.ajax({
         url: 'api/add_facility.php',
@@ -1753,7 +1890,7 @@ function saveFacility() {
             
             if (response.success) {
                 document.getElementById('facilityMessage').innerHTML = 
-                    '<div class="alert alert-success">✅ ' + response.message + ' (' + attachmentCount + ' attachments uploaded)</div>';
+                    '<div class="alert alert-success">✅ ' + response.message + ' (' + securityCount + ' security records, ' + attachmentCount + ' attachments)</div>';
                 
                 setTimeout(function() {
                     $('#addFacilityModal').modal('hide');
@@ -1769,6 +1906,7 @@ function saveFacility() {
             btn.disabled = false;
             
             console.error('AJAX Error:', xhr, status, error);
+            console.error('Response Text:', xhr.responseText);
             
             let errorMsg = 'An error occurred';
             try {
@@ -1793,6 +1931,26 @@ function saveFacility() {
         }
     });
 }
+
+// ============================================================
+// DOCUMENT READY
+// ============================================================
+$(document).ready(function() {
+    // Auto-populate zone in edit modal
+    $(document).on('change', '#edit_branch_id', function() {
+        autoPopulateZoneEdit();
+    });
+    
+    $(document).on('shown.bs.modal', '#editClientModal', function() {
+        autoPopulateZoneEdit();
+    });
+    
+    // Sanction ref preview
+    const refInput = document.getElementById('sanction_letter_ref_no');
+    if (refInput) {
+        refInput.addEventListener('input', updateRefPreview);
+    }
+});
 </script>
 
 <?php include 'footer.php'; ?>

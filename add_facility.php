@@ -70,7 +70,7 @@ if ($lookup_res && $lookup_res->num_rows > 0) {
 }
 
 $facility_as_options = ['Fresh', 'Renewal', 'Time Extension', 'Renewal with Enhancement'];
-$power_delegation_options = ['Board', 'MD'];
+$power_delegation_options = ['MD', 'Board', 'EC', 'CEO', 'DMD'];
 
 function renderFacilityAsOptions(array $options, string $selectedValue = ''): string
 {
@@ -288,6 +288,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     .amount-input-wrapper {
         position: relative;
     }
+    .full-ref-display {
+        font-size: 0.7rem;
+        color: #094b96;
+        margin-top: 2px;
+    }
 </style>
 <!DOCTYPE html>
 <html lang="en">
@@ -316,8 +321,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     <div class="col-md-4">
                         <label class="form-label fw-bold">Sanction Letter Ref No</label>
                         <div class="input-group">
-                            <span class="input-group-text"><?php echo $sanction_ref_prefix; ?></span>
+                            <span class="input-group-text ref-prefix-text"><?php echo $sanction_ref_prefix; ?></span>
                             <input type="text" name="sanction_letter_ref_no_suffix" class="form-control border-primary ref-suffix-input" placeholder="Enter reference suffix" required>
+                        </div>
+                        <div class="full-ref-display">
+                            <i class="fas fa-info-circle"></i> Full Ref: <span id="full_ref_preview"><?php echo $sanction_ref_prefix; ?>[suffix]</span>
                         </div>
                     </div>
                     <div class="col-md-4">
@@ -531,6 +539,18 @@ function updateAmountWords(inputElement) {
     }
 }
 
+// Function to update full reference preview
+function updateRefPreview() {
+    const prefix = '<?php echo $sanction_ref_prefix; ?>';
+    const suffixInput = document.querySelector('input[name="sanction_letter_ref_no_suffix"]');
+    const previewSpan = document.getElementById('full_ref_preview');
+    
+    if (suffixInput && previewSpan) {
+        const suffix = suffixInput.value.trim() || '[suffix]';
+        previewSpan.textContent = prefix + suffix;
+    }
+}
+
 // Attach event listeners to all amount inputs
 function attachAmountListeners() {
     document.querySelectorAll('.amount-input').forEach(input => {
@@ -543,6 +563,16 @@ function attachAmountListeners() {
         }
     });
 }
+
+// Attach event listener to reference suffix input
+document.addEventListener('DOMContentLoaded', function() {
+    const suffixInput = document.querySelector('input[name="sanction_letter_ref_no_suffix"]');
+    if (suffixInput) {
+        suffixInput.addEventListener('input', updateRefPreview);
+        // Initial update
+        updateRefPreview();
+    }
+});
 
 // Global variable containing standard dropdown options
 const facilityOptionsHtml = `<?php 
